@@ -1,79 +1,191 @@
 package main
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"github.com/pkg/errors"
 )
 
 type user struct {
-	Id       int    `json:"Id"`
-	Login    string `json:"Login"`
-	Password string `json:"Password"`
+	Id       int    `json:"id"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
 }
 
-// todo: переносим в БД
-// от этого отказываемся, теперь берём данные в базе
-var users = []user{
-	{Id: 1, Login: "droId", Password: "1"},
-	{Id: 2, Login: "mtvy", Password: "2"},
+// какая гадость этот ваш глобальный коннект
+var conn *pgx.Conn
+
+func getIdByLoginFromDb(cntxt *gin.Context, login, password string) {
+	var id int
+
+	query := `SELECT id FROM users WHERE login = $1 AND password = $2`
+	rows, err := conn.Query(context.Background(), query, login, password)
+	if err != nil {
+		log.Panic(errors.Wrap(err, "POST /login Query"))
+		rows.Close()
+		return
+	}
+
+	if rows.Next() {
+		err := rows.Scan(&id)
+		if err != nil {
+			log.Panic(errors.Wrap(err, "POST /login Scan"))
+			rows.Close()
+			return
+		}
+		cntxt.JSON(http.StatusOK, gin.H{"Id": id})
+		rows.Close()
+		return
+	}
+	rows.Close()
+
+	cntxt.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 }
 
-// var conn *pgx.Conn
+func getUserByIdFromDb(cntxt *gin.Context, id int) {
+	var login string
+
+	query := `SELECT login FROM users WHERE id = $1`
+	rows, err := conn.Query(context.Background(), query, id)
+	if err != nil {
+		log.Panic(errors.Wrap(err, "GET /user/:id Query\n"))
+		rows.Close()
+		return
+	}
+
+	if rows.Next() {
+		err := rows.Scan(&login)
+		if err != nil {
+			log.Panic(errors.Wrap(err, "POST /login Scan"))
+			rows.Close()
+			return
+		}
+		cntxt.JSON(http.StatusOK, gin.H{"user": login})
+		rows.Close()
+		return
+	}
+	rows.Close()
+
+	cntxt.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+}
+
+func addingUserToDb(cntxt *gin.Context, id int, login, password string) {
+	query := `INSERT INTO users (id, login, password) VALUES ($1, $2, $3)`
+	// был вариант передавать структуру user
+	// _, err := conn.Exec(context.Background(), query, user.Id, user.Login, user.Password)
+	_, err := conn.Exec(context.Background(), query, id, login, password)
+	if err != nil {
+		log.Panic(errors.Wrap(err, "POST /user Exec\n"))
+		return
+	}
+
+	cntxt.JSON(http.StatusOK, gin.H{"user": "added"})
+}
+
+// доделываю
+func updateUserInDb(cntxt *gin.Context, user user) {
+	query := `UPDATE users SET login = $2, password = $3 WHERE id = $1`
+	_, err := conn.Exec(context.Background(), query, user.Id, user.Login, user.Password)
+	if err != nil {
+		log.Panic(errors.Wrap(err, "POST /user Exec\n"))
+		return
+	}
+
+	cntxt.JSON(http.StatusOK, gin.H{"user " + strconv.FormatInt(int64(user.Id), 10): "updated"})
+}
+
+func loginHandler(cntxt *gin.Context) {
+	var user user
+
+	if err := cntxt.ShouldBind(&user); err != nil {
+		log.Panic(errors.Wrap(err, "POST /login ShouldBind\n"))
+		return
+	}
+
+	getIdByLoginFromDb(cntxt, user.Login, user.Password)
+}
+
+func userByIdHandler(cntxt *gin.Context) {
+	idParam := cntxt.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		log.Panic(errors.Wrap(err, "GET /user Atoi\n"))
+		return
+	}
+
+	getUserByIdFromDb(cntxt, id)
+}
+
+func addingHandler(cntxt *gin.Context) {
+	var user user
+
+	if err := cntxt.ShouldBind(&user); err != nil {
+		log.Panic(errors.Wrap(err, "POST /login ShouldBind\n"))
+		return
+	}
+
+	addingUserToDb(cntxt, user.Id, user.Login, user.Password)
+}
+
+// доделываю
+func updateHandler(cntxt *gin.Context) {
+	var user user
+
+	if err := cntxt.ShouldBind(&user); err != nil {
+		log.Panic(errors.Wrap(err, "POST /login ShouldBind\n"))
+		return
+	}
+
+	updateUserInDb(cntxt, user)
+}
 
 func main() {
+	var err error
+	// конект к базе
+	ctx := context.Background()
+	conn, err = pgx.Connect(ctx, "postgres://postgres:postgres@localhost:5432/postgres")
+	if err != nil {
+		log.Panic(errors.Wrap(err, "main pgx.Connect\n"))
+	}
+	defer conn.Close(ctx)
 
-	// получение conn
-	// example "postgres://${DB_USERNAME}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/postgres"
-	// conn, err := pgx.Connect("postgre://....
+	query := `
+			DO $$
+			BEGIN
+			IF NOT EXISTS (
+				SELECT FROM information_schema.tables 
+				WHERE table_name = 'users'
+			) THEN
+				CREATE TABLE users (
+					id SERIAL PRIMARY KEY,
+					login VARCHAR(100) NOT NULL,
+					password VARCHAR(255) NOT NULL,
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+				);
+			END IF;
+			END
+			$$;
+			`
+	_, err = conn.Exec(context.Background(), query)
+	if err != nil {
+		log.Panic(errors.Wrap(err, "Ошибка выполнения запроса CREATE TABLE\n"))
+		return
+	}
 
 	router := gin.Default()
 
-	// todo: перенести в функции func(c *gin.Context) {...
-	router.POST("/login", func(c *gin.Context) {
-		var user user
+	router.POST("/login", loginHandler)
 
-		if err := c.ShouldBind(&user); err != nil {
-			// todo: log.Error(errors.Wrap(err, "login ShouldBind")) | github.com/pkg/errors -> errors.Wrap(err, "login ShouldBind")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "InvalId input"})
-			return
-		}
+	router.GET("/user/:id", userByIdHandler)
 
-		// todo: проверять в базе
-		// пишешь новую функцию для похода в БД
-		for _, u := range users {
-			if u.Login == user.Login && u.Password == user.Password {
-				c.JSON(http.StatusOK, gin.H{"Id": u.Id})
-				return
-			}
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-	})
+	router.POST("/user", addingHandler)
 
-	router.GET("/user/:id", func(c *gin.Context) {
-		idParam := c.Param("id")
+	router.PUT("/user", updateHandler)
 
-		id, err := strconv.Atoi(idParam)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-			return
-		}
-
-		// todo: тоже убрать в поход в базу
-		for _, user := range users {
-			if user.Id == id {
-				c.JSON(http.StatusOK, gin.H{"user": user.Login})
-				return
-			}
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-	})
-
-	// todo: добавить
-	// POST /user
-	// PUT /user редактирование передавай на изменение полностью все поля
-
-	// Запускаем сервер на порту 8080
-	router.Run(":8080") // По умолчанию запускается на localhost:8080
+	router.Run(":8080")
 }
