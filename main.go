@@ -17,9 +17,25 @@ type user struct {
 	Password string `json:"password"`
 }
 
-// какая гадость этот ваш глобальный коннект
+// ./internal/storage
+// делаем функцию func NewConn(connString string) (*pgx.Conn, error)
 var conn *pgx.Conn
 
+// ./internal/handler/user.go
+//
+//	type UserHandle struct {
+//		db *pgx.Conn
+//	}
+//
+//	func New(db *pgx.Conn) *UserHandle {
+//		...
+//	}
+//
+// func (u *UserHandle) getIdByLoginFromDb(...
+//
+//	rows, err := u.db.Query(...
+//
+// func (u *UserHandle) Login(...
 func getIdByLoginFromDb(cntxt *gin.Context, login, password string) {
 	var id int
 
@@ -148,6 +164,7 @@ func main() {
 	var err error
 	// конект к базе
 	ctx := context.Background()
+	// заменить на conn, err := storage.NewConn(ctx, connString string) (*pgx.Conn, error)
 	conn, err = pgx.Connect(ctx, "postgres://postgres:postgres@localhost:5432/postgres")
 	if err != nil {
 		log.Panic(errors.Wrap(err, "main pgx.Connect\n"))
@@ -177,8 +194,12 @@ func main() {
 		return
 	}
 
+	// userHandle := handler.New(conn)
+	//
+	// ./cmd/main.go
+	// func NewRouter(userHandle) *gin.Engine
 	router := gin.Default()
-
+	// router.POST("/login", handler.Login)
 	router.POST("/login", loginHandler)
 
 	router.GET("/user/:id", userByIdHandler)
@@ -187,5 +208,7 @@ func main() {
 
 	router.PUT("/user", updateHandler)
 
+	// оставляй тут
 	router.Run(":8080")
+
 }
