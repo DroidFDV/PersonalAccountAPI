@@ -21,6 +21,12 @@ type UserHandle struct {
 	db *pgx.Conn
 }
 
+func NewUser(conn *pgx.Conn) *UserHandle {
+	return &UserHandle{
+		db: conn,
+	}
+}
+
 func (u *UserHandle) getIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
 	query := `SELECT id FROM users WHERE login = $1 AND password = $2`
 	rows, err := u.db.Query(ctx, query, login, password)
@@ -77,7 +83,7 @@ func (u *UserHandle) Login(c *gin.Context) {
 		return
 	}
 
-	id, err := (*UserHandle).getIDByLoginFromDB(u, c, user.Login, user.Password)
+	id, err := u.getIDByLoginFromDB(c, user.Login, user.Password)
 	if err != nil {
 		slog.Error(err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
@@ -98,7 +104,7 @@ func (u *UserHandle) UserByID(c *gin.Context) {
 		return
 	}
 
-	login, err := (*UserHandle).getUserByIDFromDB(u, c, id)
+	login, err := u.getUserByIDFromDB(c, id)
 	if err != nil {
 		slog.Error(err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
@@ -119,7 +125,7 @@ func (u *UserHandle) AddUser(c *gin.Context) {
 		return
 	}
 
-	if err := (*UserHandle).addingUserToDB(u, c, user.Id, user.Login, user.Password); err != nil {
+	if err := u.addingUserToDB(c, user.Id, user.Login, user.Password); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect user data"})
 		slog.Error(err.Error())
 		return
@@ -135,16 +141,10 @@ func (u *UserHandle) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := (*UserHandle).updateUserInDB(u, c, user.Id, user.Login, user.Password); err != nil {
+	if err := u.updateUserInDB(c, user.Id, user.Login, user.Password); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		slog.Error(err.Error())
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"user by id: " + strconv.FormatInt(int64(user.Id), 10): "updated"})
-}
-
-func NewUser(conn *pgx.Conn) *UserHandle {
-	return &UserHandle{
-		db: conn,
-	}
 }

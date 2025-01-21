@@ -10,34 +10,18 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ./internal/storage
-// делаем функцию func NewConn(connString string) (*pgx.Conn, error)
-
-// ./internal/handler/user.go
-//
-//	type UserHandle struct {
-//		db *pgx.Conn
-//	}
-//
-//	func New(db *pgx.Conn) *UserHandle {
-//		...
-//	}
-//
-// func (u *UserHandle) getIdByLoginFromDb(...
-//
-//	rows, err := u.db.Query(...
-//
-// func (u *UserHandle) Login(...
-
 func NewRouter(u *handler.UserHandle) *gin.Engine { return gin.Default() }
 
 func main() {
 
 	conn, err := db.NewConn("postgres://postgres:postgres@postgres:5432/postgres")
 	if err != nil {
-		log.Fatal(errors.Wrap(err, "main pgx.Connect"))
+		log.Fatal(errors.Wrap(err, "main db.NewConn"))
 	}
 	defer conn.Close(context.Background())
+	if err := db.CreateIfNotExistsUsers(conn); err != nil {
+		log.Fatal(errors.Wrap(err, "main db.ConnectToUsers"))
+	}
 
 	userHandle := handler.NewUser(conn)
 
