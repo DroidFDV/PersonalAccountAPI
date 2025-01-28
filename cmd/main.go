@@ -2,7 +2,7 @@ package main
 
 import (
 	"PersonalAccountAPI/internal/handler"
-	db "PersonalAccountAPI/internal/storage"
+	"PersonalAccountAPI/internal/storage"
 	"context"
 	"log"
 
@@ -10,27 +10,29 @@ import (
 	"github.com/pkg/errors"
 )
 
-func NewRouter(u *handler.UserHandle) *gin.Engine { return gin.Default() }
+func NewRouter(handler *handler.Handle) *gin.Engine {
+	router := gin.Default()
+	router.POST("/login", handler.Login)
+	router.GET("/user/:id", handler.GetUserByID)
+	router.POST("/user", handler.AddUser)
+	router.PUT("/user", handler.UpdateUser)
+	return router
+}
 
 func main() {
 
-	conn, err := db.NewConn("postgres://postgres:postgres@postgres:5432/postgres")
+	conn, err := storage.NewConn("postgres://postgres:postgres@postgres:5432/postgres")
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "main db.NewConn"))
 	}
 	defer conn.Close(context.Background())
-	if err := db.CreateIfNotExistsUsers(conn); err != nil {
+	if err := storage.CreateIfNotExistsUsers(conn); err != nil {
 		log.Fatal(errors.Wrap(err, "main db.ConnectToUsers"))
 	}
 
-	userHandle := handler.NewUser(conn)
+	userHandle := handler.NewHandle(conn)
 
 	router := NewRouter(userHandle)
-
-	router.POST("/login", userHandle.Login)
-	router.GET("/user/:id", userHandle.UserByID)
-	router.POST("/user", userHandle.AddUser)
-	router.PUT("/user", userHandle.UpdateUser)
 
 	router.Run(":8080")
 
