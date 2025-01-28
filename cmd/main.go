@@ -1,6 +1,7 @@
 package main
 
 import (
+	"PersonalAccountAPI/database"
 	"PersonalAccountAPI/internal/handler"
 	"PersonalAccountAPI/internal/storage"
 	"context"
@@ -26,8 +27,9 @@ func main() {
 		log.Fatal(errors.Wrap(err, "main db.NewConn"))
 	}
 	defer conn.Close(context.Background())
-	if err := storage.CreateIfNotExistsUsers(conn); err != nil {
-		log.Fatal(errors.Wrap(err, "main db.ConnectToUsers"))
+
+	if err := database.Migrate("postgres://postgres:postgres@postgres:5432/postgres"); err != nil {
+		log.Fatal(errors.Wrap(err, "main db.NewConn"))
 	}
 
 	userHandle := handler.NewHandle(conn)

@@ -14,16 +14,3 @@ func NewConn(connString string) (*pgx.Conn, error) {
 	}
 	return conn, err
 }
-
-func CreateIfNotExistsUsers(conn *pgx.Conn) error {
-	query := `
-			CREATE TABLE IF NOT EXISTS users (
-				id SERIAL PRIMARY KEY,
-				login VARCHAR(100) NOT NULL,
-				password VARCHAR(255) NOT NULL,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-			);
-			`
-	_, err := conn.Exec(context.Background(), query)
-	return errors.Wrap(err, "Ошибка выполнения запроса CREATE TABLE")
-}
