@@ -9,7 +9,7 @@ import (
 
 type CacheDecorator struct {
 	userProvider usecase.UserUsecase
-	cmap         map[usecase.User]usecase.User
+	cMap         map[usecase.User]usecase.User
 	// второстепенно ttl time.Duration
 }
 
@@ -17,7 +17,7 @@ func NewCache(conn *pgx.Conn) *CacheDecorator {
 	return &CacheDecorator{
 		userProvider: *usecase.NewUser(conn),
 		// Возможно для cache разумно использовать ограниченный размер
-		cmap: make(map[usecase.User]usecase.User),
+		cMap: make(map[usecase.User]usecase.User),
 	}
 }
 
@@ -25,29 +25,29 @@ func NewCache(conn *pgx.Conn) *CacheDecorator {
 
 func (cache *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
 	key := usecase.User{Login: login, Password: password}
-	user, exists := cache.cmap[key]
+	user, exists := cache.cMap[key]
 	if exists {
 		return user.Id, nil
 	} else {
 		id, err := cache.userProvider.GetIDByLoginFromDB(ctx, login, password)
-		cache.cmap[key] = usecase.User{Id: id, Login: login, Password: password}
+		cache.cMap[key] = usecase.User{Id: id, Login: login, Password: password}
 		return id, err
 	}
 }
 
 func (cache *CacheDecorator) GetUserByIDFromDB(ctx context.Context, id int) (string, error) {
 	key := usecase.User{Id: id}
-	user, exists := cache.cmap[key]
+	user, exists := cache.cMap[key]
 	if exists {
 		return user.Login, nil
 	} else {
 		login, err := cache.userProvider.GetUserByIDFromDB(ctx, id)
-		cache.cmap[key] = usecase.User{Id: id, Login: login}
+		cache.cMap[key] = usecase.User{Id: id, Login: login}
 		return login, err
 	}
 }
 
-// Нужны ли эти методы?
+// Нужны ли эти методы? Нет, так как они изменяют базу
 // func (user *CacheDecorator) AddingUserToDB(ctx context.Context, id int, login, password string) error {
 
 // }
