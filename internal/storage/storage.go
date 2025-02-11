@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func NewConn(connString string) (*pgx.Conn, error) {
+func GetConnect(connString string) (*pgx.Conn, error) {
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
 		return nil, errors.Wrap(err, "pgx.Connect")

@@ -1,57 +1,93 @@
 package cache
 
 import (
+	"PersonalAccountAPI/internal/models"
 	"PersonalAccountAPI/internal/usecase"
 	"context"
-
-	"github.com/jackc/pgx/v5"
+	"sync"
 )
 
+// редко будет использоваться (или вообще не булет),
+// так что нееффективно
+func getKeyByLogPass(m *map[int]models.UserRequest, login, password string) (int, bool) {
+	for key, mapValue := range *m {
+		if (mapValue.Login == login) && (mapValue.Password == password) {
+			return key, true
+		}
+	}
+	return 0, false
+}
+
 type CacheDecorator struct {
-	userProvider usecase.UserUsecase
-	cMap         map[usecase.User]usecase.User
+	mx           sync.RWMutex
+	userProvider *usecase.UserUsecase
+	userMap      map[int]models.UserRequest
+	userLoginMap map[string]models.UserRequest
 	// второстепенно ttl time.Duration
 }
 
-func NewCache(conn *pgx.Conn) *CacheDecorator {
+func New(user *usecase.UserUsecase) *CacheDecorator {
 	return &CacheDecorator{
-		userProvider: *usecase.NewUser(conn),
-		// Возможно для cache разумно использовать ограниченный размер
-		cMap: make(map[usecase.User]usecase.User),
+		mx:           sync.RWMutex{},
+		userProvider: user,
+		userMap:      make(map[int]models.UserRequest),
+		userLoginMap: make(map[string]models.UserRequest),
 	}
 }
 
-// Возможно стоит использовать xxhash
+func (c *CacheDecorator) getUserMapValue(key int) (models.UserRequest, bool) {
+	c.mx.RLock()
+	user, exists := c.userMap[key]
+	c.mx.RUnlock()
+	return user, exists
+}
 
-func (cache *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
-	key := usecase.User{Login: login, Password: password}
-	user, exists := cache.cMap[key]
+func (c *CacheDecorator) setUserMapValue(key int, user models.UserRequest) {
+	c.mx.Lock()
+	c.userMap[key] = user
+	c.mx.Unlock()
+}
+
+func (c *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
+	keyId, _ := getKeyByLogPass(&c.userMap, login, password)
+	user, exists := c.getUserMapValue(keyId)
 	if exists {
 		return user.Id, nil
 	} else {
-		id, err := cache.userProvider.GetIDByLoginFromDB(ctx, login, password)
-		cache.cMap[key] = usecase.User{Id: id, Login: login, Password: password}
+		id, err := c.userProvider.GetIDByLoginFromDB(ctx, login, password)
+		if err != nil {
+			return id, err
+		}
+		c.setUserMapValue(id, models.UserRequest{Id: id, Login: login, Password: password})
 		return id, err
 	}
 }
 
-func (cache *CacheDecorator) GetUserByIDFromDB(ctx context.Context, id int) (string, error) {
-	key := usecase.User{Id: id}
-	user, exists := cache.cMap[key]
+func (c *CacheDecorator) GetUserByIDFromDB(ctx context.Context, id int) (string, error) {
+	keyId := id
+	user, exists := c.getUserMapValue(keyId)
 	if exists {
 		return user.Login, nil
 	} else {
-		login, err := cache.userProvider.GetUserByIDFromDB(ctx, id)
-		cache.cMap[key] = usecase.User{Id: id, Login: login}
+		login, err := c.userProvider.GetUserByIDFromDB(ctx, id)
+		if err != nil {
+			return login, err
+		}
+		c.setUserMapValue(keyId, models.UserRequest{Id: id, Login: login})
 		return login, err
 	}
 }
 
 // Нужны ли эти методы? Нет, так как они изменяют базу
-// func (user *CacheDecorator) AddingUserToDB(ctx context.Context, id int, login, password string) error {
+func (c *CacheDecorator) AddingUserToDB(ctx context.Context, id int, login, password string) error {
+	c.setUserMapValue(id, models.UserRequest{Id: id, Login: login, Password: password})
+	return c.userProvider.AddingUserToDB(ctx, id, login, password)
+}
 
-// }
-
-// func (user *CacheDecorator) UpdateUserInDB(ctx context.Context, id int, login, password string) error {
-
-// }
+func (c *CacheDecorator) UpdateUserInDB(ctx context.Context, id int, login, password string) error {
+	user, exists := c.getUserMapValue(id)
+	if exists {
+		c.setUserMapValue(id, user)
+	}
+	return c.userProvider.UpdateUserInDB(ctx, id, login, password)
+}

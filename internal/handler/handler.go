@@ -1,64 +1,45 @@
 package handler
 
 import (
-	"PersonalAccountAPI/internal/cache"
+	"PersonalAccountAPI/internal/models"
 	"PersonalAccountAPI/internal/usecase"
+	"PersonalAccountAPI/internal/workers"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
 
-// Не сходиться с идеей, что мы хотим не изменять handler
-// При каждом новом provider нам надо обновлять handler
-// новое поле newProvider, новые методы, где изменяется
-// только объект, метод которого вызываем
-// Также по сути интерфейс не используется
-
-// type FooInterface interface {
-// 	DoSmth()
-// }
-
-// type Goo struct {
-// 	fields fieldA
-// }
-
-// func (*Goo) DoSmth() {}
-
-// type Hoo struct {
-// 	fields fieldB
-// }
-
-// func (*Hoo) DoSmth() {}
-
-// func foo(inter *FooInterface) {
-// 	DoSmth()
-// }
-
 type Handle struct {
-	userProvider  usecase.UserUsecase
-	cacheProvider cache.CacheDecorator
+	userProvider usecase.Provider
 }
 
-func NewHandle(conn *pgx.Conn) *Handle {
+func New(provider usecase.Provider) *Handle {
 	return &Handle{
-		userProvider:  *usecase.NewUser(conn),
-		cacheProvider: *cache.NewCache(conn),
+		userProvider: provider,
 	}
 }
 
 func (handle *Handle) Login(c *gin.Context) {
-	var user usecase.User
+	var user models.UserRequest
 	if err := c.ShouldBind(&user); err != nil {
-		slog.Error(errors.Wrap(err, "POST /login ShouldBind").Error())
+		slog.Error(errors.Wrap(err, "Login ShouldBind").Error())
 		return
 	}
 
 	id, err := handle.userProvider.GetIDByLoginFromDB(c, user.Login, user.Password)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
 		slog.Error(err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		return
@@ -74,12 +55,17 @@ func (handle *Handle) GetUserByID(c *gin.Context) {
 	idParam := c.Param("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
-		slog.Error(errors.Wrap(err, "GET /user/:id Atoi").Error())
+		slog.Error(errors.Wrap(err, "GetUserByID Atoi").Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		return
 	}
 
 	login, err := handle.userProvider.GetUserByIDFromDB(c, id)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
 		slog.Error(err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		return
@@ -92,10 +78,10 @@ func (handle *Handle) GetUserByID(c *gin.Context) {
 }
 
 func (handle *Handle) AddUser(c *gin.Context) {
-	var user usecase.User
+	var user models.UserRequest
 
 	if err := c.ShouldBind(&user); err != nil {
-		slog.Error(errors.Wrap(err, "POST /login ShouldBind").Error())
+		slog.Error(errors.Wrap(err, "AddUser ShouldBind").Error())
 		return
 	}
 
@@ -108,10 +94,10 @@ func (handle *Handle) AddUser(c *gin.Context) {
 }
 
 func (handle *Handle) UpdateUser(c *gin.Context) {
-	var user usecase.User
+	var user models.UserRequest
 
 	if err := c.ShouldBind(&user); err != nil {
-		slog.Error(errors.Wrap(err, "PUT /login ShouldBind").Error())
+		slog.Error(errors.Wrap(err, "UpdateUser ShouldBind").Error())
 		return
 	}
 
@@ -123,43 +109,58 @@ func (handle *Handle) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user by id: " + strconv.FormatInt(int64(user.Id), 10): "updated"})
 }
 
-func (handle *Handle) LoginCached(c *gin.Context) {
-	var user usecase.User
-	if err := c.ShouldBind(&user); err != nil {
-		slog.Error(errors.Wrap(err, "POST /login ShouldBind").Error())
-		return
-	}
-
-	id, err := handle.cacheProvider.GetIDByLoginFromDB(c, user.Login, user.Password)
-	if err != nil {
-		slog.Error(err.Error())
+func (handle *Handle) UploadFile(c *gin.Context) {
+	userId := c.Param("id")
+	if userId == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		return
 	}
-	if id == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+	url := c.PostForm("url")
+	fileName := c.PostForm("fileName")
+
+	if url == "" || fileName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Необходимо передать url и fileName"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"id": id})
+
+	// Создаем задачу
+	job := workers.Job{
+		ID:       time.Now().Nanosecond(),
+		FileName: fileName,
+		URL:      url,
+	}
+
+	// Отправляем в очередь на обработку
+	jobs <- job
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Файл %s добавлен в очередь", fileName)})
+	// file, err := c.FormFile("File")
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
+	// 	return
+	// }
+
+	// dstPath, err := createSaveFilePath(userId, file.Filename)
+	// if err != nil {
+	// 	slog.Error(err.Error())
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+	// 	return
+	// }
+	// if err := c.SaveUploadedFile(file, dstPath); err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
+	// 	return
+	// }
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"message": "File uploaded successfully",
+	// 	"file":    file.Filename,
+	// })
 }
 
-func (handle *Handle) GetUserByIDCached(c *gin.Context) {
-	idParam := c.Param("id")
-	id, err := strconv.Atoi(idParam)
-	if err != nil {
-		slog.Error(errors.Wrap(err, "GET /user/:id Atoi").Error())
-		return
+func createSaveFilePath(dstDir string, fileName string) (string, error) {
+	userDir := filepath.Join(models.UploadsDir, dstDir)
+	if err := os.MkdirAll(userDir, os.ModePerm); err != nil {
+		return "", errors.Wrap(err, "Failed to create uploads directory: ")
 	}
 
-	login, err := handle.cacheProvider.GetUserByIDFromDB(c, id)
-	if err != nil {
-		slog.Error(err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		return
-	}
-	if login == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"user": login})
+	dstPath := filepath.Join(userDir, fileName)
+	return dstPath, nil
 }
