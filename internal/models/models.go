@@ -3,7 +3,7 @@ package models
 var UploadsDir string = "./uploads"
 
 type UserRequest struct {
-	Id       int    `json:"id"`
+	ID       int    `json:"id"`
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }

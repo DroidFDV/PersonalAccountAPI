@@ -4,19 +4,11 @@ import (
 	"PersonalAccountAPI/internal/models"
 	"PersonalAccountAPI/internal/usecase"
 	"context"
+	"mime/multipart"
 	"sync"
-)
 
-// редко будет использоваться (или вообще не булет),
-// так что нееффективно
-func getKeyByLogPass(m *map[int]models.UserRequest, login, password string) (int, bool) {
-	for key, mapValue := range *m {
-		if (mapValue.Login == login) && (mapValue.Password == password) {
-			return key, true
-		}
-	}
-	return 0, false
-}
+	"github.com/pkg/errors"
+)
 
 type CacheDecorator struct {
 	mx           sync.RWMutex
@@ -32,62 +24,91 @@ func New(user *usecase.UserUsecase) *CacheDecorator {
 		userProvider: user,
 		userMap:      make(map[int]models.UserRequest),
 		userLoginMap: make(map[string]models.UserRequest),
+
+		// ttl
 	}
 }
 
 func (c *CacheDecorator) getUserMapValue(key int) (models.UserRequest, bool) {
 	c.mx.RLock()
+	defer c.mx.RUnlock()
+
 	user, exists := c.userMap[key]
-	c.mx.RUnlock()
 	return user, exists
 }
 
 func (c *CacheDecorator) setUserMapValue(key int, user models.UserRequest) {
 	c.mx.Lock()
+	defer c.mx.Unlock()
+
 	c.userMap[key] = user
-	c.mx.Unlock()
+}
+
+// не эффективно
+func (c *CacheDecorator) getKeyByLogPass(login, password string) int {
+	for key, mapValue := range c.userMap {
+		if (mapValue.Login == login) && (mapValue.Password == password) {
+			return key
+		}
+	}
+	return 0
 }
 
 func (c *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
-	keyId, _ := getKeyByLogPass(&c.userMap, login, password)
-	user, exists := c.getUserMapValue(keyId)
-	if exists {
-		return user.Id, nil
-	} else {
-		id, err := c.userProvider.GetIDByLoginFromDB(ctx, login, password)
-		if err != nil {
-			return id, err
-		}
-		c.setUserMapValue(id, models.UserRequest{Id: id, Login: login, Password: password})
-		return id, err
+	keyID := c.getKeyByLogPass(login, password)
+	user, ok := c.getUserMapValue(keyID)
+	if ok {
+		return user.ID, nil
 	}
+
+	id, err := c.userProvider.GetIDByLoginFromDB(ctx, login, password)
+	if err != nil {
+		return id, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLoginFromDB:")
+	}
+	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login, Password: password})
+	return id, errors.Wrap(err, "CacheDecorator.GetIDByLoginFromDB:")
 }
 
 func (c *CacheDecorator) GetUserByIDFromDB(ctx context.Context, id int) (string, error) {
-	keyId := id
-	user, exists := c.getUserMapValue(keyId)
-	if exists {
+	user, ok := c.getUserMapValue(id)
+	if ok {
 		return user.Login, nil
-	} else {
-		login, err := c.userProvider.GetUserByIDFromDB(ctx, id)
-		if err != nil {
-			return login, err
-		}
-		c.setUserMapValue(keyId, models.UserRequest{Id: id, Login: login})
-		return login, err
 	}
+
+	login, err := c.userProvider.GetUserByIDFromDB(ctx, id)
+	if err != nil {
+		return login, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByIDFromDB:")
+	}
+	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login})
+	return login, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByIDFromDB:")
 }
 
-// Нужны ли эти методы? Нет, так как они изменяют базу
 func (c *CacheDecorator) AddingUserToDB(ctx context.Context, id int, login, password string) error {
-	c.setUserMapValue(id, models.UserRequest{Id: id, Login: login, Password: password})
-	return c.userProvider.AddingUserToDB(ctx, id, login, password)
+	err := c.userProvider.AddingUserToDB(ctx, id, login, password)
+	if err != nil {
+		return errors.Wrap(err, "CacheDecorator.userProvider.AddingUserToDB:")
+	}
+
+	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login, Password: password})
+	return errors.Wrap(err, "CacheDecorator.userProvider.AddingUserToDB:")
 }
 
 func (c *CacheDecorator) UpdateUserInDB(ctx context.Context, id int, login, password string) error {
+	err := c.userProvider.UpdateUserInDB(ctx, id, login, password)
+	if err != nil {
+		return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUserInDB:")
+	}
+
 	user, exists := c.getUserMapValue(id)
 	if exists {
 		c.setUserMapValue(id, user)
 	}
-	return c.userProvider.UpdateUserInDB(ctx, id, login, password)
+	return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUserInDB:")
+}
+
+func (c *CacheDecorator) SetFile(file *multipart.FileHeader) {
+	c.userProvider.SetFile(file)
+}
+func (c *CacheDecorator) UploadFile(ctx context.Context) error {
+	return errors.Wrap(c.userProvider.UploadFile(ctx), "CacheDecorator.userProvider.UploadFile:")
 }

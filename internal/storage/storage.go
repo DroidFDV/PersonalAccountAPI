@@ -10,7 +10,7 @@ import (
 func GetConnect(connString string) (*pgx.Conn, error) {
 	conn, err := pgx.Connect(context.Background(), connString)
 	if err != nil {
-		return nil, errors.Wrap(err, "pgx.Connect")
+		return nil, errors.Wrap(err, "GetConnect pgx.Connect")
 	}
 	return conn, err
 }

@@ -23,7 +23,7 @@ func newRouter(handler *handler.Handle) *gin.Engine {
 	router.POST("/login", handler.Login)
 	router.GET("/user/:id", handler.GetUserByID)
 	router.PUT("/user", handler.UpdateUser)
-	router.POST("/user/upload/:id", handler.UploadFile)
+	router.POST("/file/upload", handler.UploadFile)
 	return router
 }
 
@@ -42,19 +42,15 @@ func main() {
 		log.Fatalf("Failed to create uploads directory: %v", err)
 	}
 
-	workManager := workers.New(10, 100)
-	workManager.StartPool()
-	for i := range 5 {
-		workManager.AddJob(workers.Job{ID: i})
-		time.Sleep(time.Duration(10) * time.Millisecond)
-	}
+	workers.Run(10)
 
 	time.Sleep(time.Duration(2) * time.Second)
 
 	userProvider := usecase.New(conn)
 	cacheProvider := cache.New(userProvider)
+	workerManager := workers.Run(10)
 
-	handle := handler.New(cacheProvider)
+	handle := handler.New(cacheProvider, workerManager)
 	// handle := handler.New(userProvider)
 
 	router := newRouter(handle)

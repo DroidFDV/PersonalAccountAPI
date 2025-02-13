@@ -1,45 +1,50 @@
 package workers
 
 import (
-	"sync"
+	"context"
 )
 
+var jobQueueLen int = 1000
+
 type Manager struct {
-	//TODO: заменить interface{} на что-то более разумное и определенное
-	jobQueue   chan interface{}
-	workerPool chan struct{}
-	wg         sync.WaitGroup
+	jobQueue       chan func(context.Context) error
+	logChan        chan error
+	workerPoolSize int
 }
 
-func New(workerCount, jobQueueSize uint) *Manager {
+func New(workerCount, queueLen int) *Manager {
 	return &Manager{
-		workerPool: make(chan struct{}, workerCount),
-		jobQueue:   make(chan interface{}, jobQueueSize),
+		workerPoolSize: workerCount,
+		jobQueue:       make(chan func(context.Context) error, queueLen),
+		logChan:        make(chan error),
 	}
 }
 
 func (m *Manager) StartPool() {
-
-	for i := 0; i < cap(m.workerPool); i++ {
-		m.workerPool <- struct{}{}
-		m.wg.Add(1)
-		go m.worker()
+	for job := range m.jobQueue {
+		go m.worker(job)
 	}
 }
 
 func (m *Manager) Stop() {
 	close(m.jobQueue)
-	m.wg.Wait()
-	close(m.workerPool)
+	close(m.logChan)
 }
 
-func (m *Manager) AddJob(job interface{}) {
+func (m *Manager) SetJob(job func(ctx context.Context) error) {
 	m.jobQueue <- job
 }
 
-func (m *Manager) worker() {
-	defer m.wg.Done()
-	for job := range m.jobQueue {
-		job.Work()
-	}
+func (m *Manager) worker(job func(ctx context.Context) error) {
+	m.logChan <- job(context.TODO())
+}
+
+func (m *Manager) GetLog() error {
+	return <-m.logChan
+}
+
+func Run(workerCount int) *Manager {
+	manager := New(workerCount, jobQueueLen)
+	go manager.StartPool()
+	return manager
 }

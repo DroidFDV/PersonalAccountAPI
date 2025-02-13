@@ -16,35 +16,35 @@ var migrations embed.FS
 func Migrate(connString string) error {
 	db, err := sql.Open("pgx", connString)
 	if err != nil {
-		return errors.Wrap(err, "cannot connect to db")
+		return errors.Wrap(err, "Migrate sql.Open: cannot connect to db")
 	}
 	defer db.Close()
 
 	if err = db.Ping(); err != nil {
-		return errors.Wrap(err, "cannot ping db")
+		return errors.Wrap(err, "Migrate db.Ping: cannot ping db")
 	}
 
 	goose.SetBaseFS(migrations)
 	if err = goose.SetDialect("postgres"); err != nil {
-		return errors.Wrap(err, "cannot set migrations dialect")
+		return errors.Wrap(err, "Migrate goose.SetDialect: cannot set migrations dialect")
 	}
 
 	version, err := goose.GetDBVersion(db)
 	if err != nil {
-		return errors.Wrap(err, "cannot get migration version")
+		return errors.Wrap(err, "Migrate goose.GetDBVersion: cannot get migration version")
 	}
 
 	err = goose.Up(db, "migrations")
 	if err != nil {
 		if err := goose.DownTo(db, "migrations", version); err != nil {
 			slog.Error(
-				"cannot rollback migrations",
+				"Migrate goose.DownTo: cannot rollback migrations",
 				slog.Any("error", err),
 				slog.Any("try rollback to version", version),
 			)
 		}
 
-		return errors.Wrap(err, "cannot up migrations")
+		return errors.Wrap(err, "Migrate goose.Up: cannot up migrations")
 	}
 
 	return nil
