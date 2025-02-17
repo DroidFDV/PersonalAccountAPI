@@ -11,20 +11,20 @@ import (
 )
 
 type CacheDecorator struct {
-	mx           sync.RWMutex
 	userProvider *usecase.UserUsecase
-	userMap      map[int]models.UserRequest
-	userLoginMap map[string]models.UserRequest
-	// второстепенно ttl time.Duration
+
+	mx      sync.RWMutex
+	userMap map[int]models.UserRequest
+	// userLoginMap map[string]models.UserRequest
+	// ttl time.Duration
 }
 
 func New(user *usecase.UserUsecase) *CacheDecorator {
 	return &CacheDecorator{
-		mx:           sync.RWMutex{},
 		userProvider: user,
+		mx:           sync.RWMutex{},
 		userMap:      make(map[int]models.UserRequest),
-		userLoginMap: make(map[string]models.UserRequest),
-
+		// userLoginMap: make(map[string]models.UserRequest),
 		// ttl
 	}
 }
@@ -52,6 +52,13 @@ func (c *CacheDecorator) getKeyByLogPass(login, password string) int {
 		}
 	}
 	return 0
+}
+
+func (c *CacheDecorator) GetCacheSize() int {
+	c.mx.RLock()
+	defer c.mx.RUnlock()
+
+	return len(c.userMap)
 }
 
 func (c *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
