@@ -39,6 +39,7 @@ func (m *Manager) worker(job func(ctx context.Context) error) {
 	m.logChan <- job(context.TODO())
 }
 
+// todo: подумать над реализацией передачи логов
 func (m *Manager) GetLog() error {
 	return <-m.logChan
 }

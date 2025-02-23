@@ -4,17 +4,17 @@ import (
 	"PersonalAccountAPI/database"
 	"PersonalAccountAPI/internal/cache"
 	"PersonalAccountAPI/internal/handler"
+	"PersonalAccountAPI/internal/metrics"
 	"PersonalAccountAPI/internal/models"
 	"PersonalAccountAPI/internal/storage"
 	"PersonalAccountAPI/internal/usecase"
 	"PersonalAccountAPI/internal/workers"
 	"context"
 	"log"
-	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func newRouter(handler *handler.Handle) *gin.Engine {
@@ -24,37 +24,48 @@ func newRouter(handler *handler.Handle) *gin.Engine {
 	router.GET("/user/:id", handler.GetUserByID)
 	router.PUT("/user", handler.UpdateUser)
 	router.POST("/file/upload", handler.UploadFile)
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	router.Use(metrics.RequestReceived)
+
 	return router
 }
 
+// func newMetricsRouter() *gin.Engine {
+// 	metricsRouter := gin.Default()
+// 	metricsRouter.Use(metrics.PrometheusMiddleware())
+// 	return metricsRouter
+// }
+
 func main() {
-	conn, err := storage.GetConnect("postgres://postgres:postgres@postgres:5432/postgres")
+	cfg, err := LoadConfig()
 	if err != nil {
-		log.Fatal(errors.Wrap(err, "main db.NewConn"))
+		log.Fatal(errors.Wrap(err, "main storage.GetConnect: Failed to load config"))
+	}
+	models.UploadsDir = cfg.FileStoragePatg
+
+	conn, err := storage.GetConnect(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal(errors.Wrap(err, "main storage.GetConnect"))
 	}
 	defer conn.Close(context.Background())
 
-	if err := database.Migrate("postgres://postgres:postgres@postgres:5432/postgres"); err != nil {
-		log.Fatal(errors.Wrap(err, "main db.NewConn"))
+	if err := database.Migrate(cfg.DatabaseURL); err != nil {
+		log.Fatal(errors.Wrap(err, "main database.Migrate"))
 	}
 
-	if err := os.MkdirAll(models.UploadsDir, os.ModePerm); err != nil {
-		log.Fatalf("Failed to create uploads directory: %v", err)
-	}
-
-	workers.Run(10)
-
-	time.Sleep(time.Duration(2) * time.Second)
+	workerManager := workers.Run(10)
 
 	userProvider := usecase.New(conn)
 	cacheProvider := cache.New(userProvider)
-	workerManager := workers.Run(10)
 
 	handle := handler.New(cacheProvider, workerManager)
 	// handle := handler.New(userProvider)
 
 	router := newRouter(handle)
+	metrics.InitMetrics()
+	go metrics.UpdateMetrics(cacheProvider)
 
-	router.Run(":8080")
+	router.Run(cfg.Port)
 
 }

@@ -1,15 +1,15 @@
 package usecase
 
 import (
+	"PersonalAccountAPI/internal/models"
 	"context"
 	"mime/multipart"
 )
 
 type Provider interface {
-	GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error)
-	GetUserByIDFromDB(ctx context.Context, id int) (string, error)
-	AddingUserToDB(ctx context.Context, id int, login, password string) error
-	UpdateUserInDB(ctx context.Context, id int, login, password string) error
-	SetFile(file *multipart.FileHeader)
-	UploadFile(ctx context.Context) error
+	GetIDByLoginFromDB(ctx context.Context, user models.UserRequest) (int, error)
+	GetUserByIDFromDB(ctx context.Context, user models.UserRequest) (string, error)
+	AddingUserToDB(ctx context.Context, user models.UserRequest) error
+	UpdateUserInDB(ctx context.Context, user models.UserRequest) error
+	UploadFile(ctx context.Context, id string, file *multipart.FileHeader) func(ctx context.Context) error
 }
