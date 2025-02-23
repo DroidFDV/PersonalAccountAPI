@@ -12,9 +12,17 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     ports:
       - "3000:3000"
+    volumes:
+      - ./datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
     depends_on:
       - prometheus
-      
+  
+  init-storage:
+    image: alpine
+    command: ["/bin/sh", "-c", "mkdir -p /app/uploads"]
+    volumes:
+      - file-storage:/app/uploads
+  
   api-gateway:
     build: ./
     ports:
@@ -22,6 +30,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - file-storage:/app/uploads
+      - ./cmd/config.yaml:/app/cmd/config.yaml
         
   postgres:
     image: postgres:14.10-alpine
@@ -41,13 +52,4 @@ services:
 
 volumes:
   pgdata:
-
-
-# Запустить
-# docker compose build
-# docker compose up
-
-# Остановить
-# docker compose down
-
-# docker compose up --build
+  file-storage:

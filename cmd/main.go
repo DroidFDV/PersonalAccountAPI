@@ -4,68 +4,18 @@ import (
 	"PersonalAccountAPI/database"
 	"PersonalAccountAPI/internal/cache"
 	"PersonalAccountAPI/internal/handler"
+	"PersonalAccountAPI/internal/metrics"
 	"PersonalAccountAPI/internal/models"
 	"PersonalAccountAPI/internal/storage"
 	"PersonalAccountAPI/internal/usecase"
 	"PersonalAccountAPI/internal/workers"
 	"context"
 	"log"
-	"net/http"
-	"os"
-	"runtime"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
-
-// Метрики
-var (
-	httpRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests",
-		},
-		[]string{"method", "status"},
-	)
-
-	goRoutineCount = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "go_routines_count",
-			Help: "Number of active Go routines",
-		},
-	)
-
-	cacheSize = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "cache_size",
-			Help: "Number of users in cache",
-		},
-	)
-)
-
-func updateMetrics(c *cache.CacheDecorator) {
-	for {
-		goRoutineCount.Set(float64(runtime.NumGoroutine()))
-		cacheSize.Set(float64(c.GetCacheSize()))
-		time.Sleep(5 * time.Second)
-	}
-}
-
-func requestReceived(c *gin.Context) {
-	c.Next()
-	status := c.Writer.Status()
-	httpRequests.WithLabelValues(c.Request.Method, http.StatusText(status)).Inc()
-}
-
-func init() {
-	// Регистрируем метрики
-	prometheus.MustRegister(httpRequests)
-	prometheus.MustRegister(goRoutineCount)
-	prometheus.MustRegister(cacheSize)
-}
 
 func newRouter(handler *handler.Handle) *gin.Engine {
 	router := gin.Default()
@@ -76,45 +26,45 @@ func newRouter(handler *handler.Handle) *gin.Engine {
 	router.POST("/file/upload", handler.UploadFile)
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
-	router.Use(requestReceived)
+	router.Use(metrics.RequestReceived)
 
 	return router
 }
 
+// func newMetricsRouter() *gin.Engine {
+// 	metricsRouter := gin.Default()
+// 	metricsRouter.Use(metrics.PrometheusMiddleware())
+// 	return metricsRouter
+// }
+
 func main() {
 	cfg, err := LoadConfig()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Fatal(errors.Wrap(err, "main storage.GetConnect: Failed to load config"))
 	}
+	models.UploadsDir = cfg.FileStoragePatg
 
 	conn, err := storage.GetConnect(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal(errors.Wrap(err, "main db.NewConn:"))
+		log.Fatal(errors.Wrap(err, "main storage.GetConnect"))
 	}
 	defer conn.Close(context.Background())
 
 	if err := database.Migrate(cfg.DatabaseURL); err != nil {
-		log.Fatal(errors.Wrap(err, "main db.NewConn:"))
+		log.Fatal(errors.Wrap(err, "main database.Migrate"))
 	}
 
-	if err := os.MkdirAll(models.UploadsDir, os.ModePerm); err != nil {
-		log.Fatal(errors.Wrap(err, "main os.MkdirAll: failed to create uploads directory"))
-	}
-
-	workers.Run(10)
-
-	time.Sleep(time.Duration(2) * time.Second)
+	workerManager := workers.Run(10)
 
 	userProvider := usecase.New(conn)
 	cacheProvider := cache.New(userProvider)
-	workerManager := workers.Run(10)
 
 	handle := handler.New(cacheProvider, workerManager)
 	// handle := handler.New(userProvider)
 
 	router := newRouter(handle)
-	// Запускаем обновление метрик в фоне
-	go updateMetrics(cacheProvider)
+	metrics.InitMetrics()
+	go metrics.UpdateMetrics(cacheProvider)
 
 	router.Run(cfg.Port)
 

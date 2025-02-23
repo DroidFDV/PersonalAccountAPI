@@ -44,7 +44,7 @@ func (c *CacheDecorator) setUserMapValue(key int, user models.UserRequest) {
 	c.userMap[key] = user
 }
 
-// не эффективно
+// todo: не эффективно, добавить карту пользователей по логину
 func (c *CacheDecorator) getKeyByLogPass(login, password string) int {
 	for key, mapValue := range c.userMap {
 		if (mapValue.Login == login) && (mapValue.Password == password) {
@@ -61,61 +61,59 @@ func (c *CacheDecorator) GetCacheSize() int {
 	return len(c.userMap)
 }
 
-func (c *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
-	keyID := c.getKeyByLogPass(login, password)
+func (c *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, userRequest models.UserRequest) (int, error) {
+	keyID := c.getKeyByLogPass(userRequest.Login, userRequest.Password)
 	user, ok := c.getUserMapValue(keyID)
 	if ok {
 		return user.ID, nil
 	}
 
-	id, err := c.userProvider.GetIDByLoginFromDB(ctx, login, password)
+	id, err := c.userProvider.GetIDByLoginFromDB(ctx, userRequest)
 	if err != nil {
 		return id, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLoginFromDB:")
 	}
-	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login, Password: password})
+	c.setUserMapValue(id, models.UserRequest{ID: id, Login: userRequest.Login, Password: userRequest.Password})
 	return id, errors.Wrap(err, "CacheDecorator.GetIDByLoginFromDB:")
 }
 
-func (c *CacheDecorator) GetUserByIDFromDB(ctx context.Context, id int) (string, error) {
-	user, ok := c.getUserMapValue(id)
+func (c *CacheDecorator) GetUserByIDFromDB(ctx context.Context, userRequest models.UserRequest) (string, error) {
+	user, ok := c.getUserMapValue(userRequest.ID)
 	if ok {
 		return user.Login, nil
 	}
 
-	login, err := c.userProvider.GetUserByIDFromDB(ctx, id)
+	login, err := c.userProvider.GetUserByIDFromDB(ctx, userRequest)
 	if err != nil {
 		return login, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByIDFromDB:")
 	}
-	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login})
+	c.setUserMapValue(userRequest.ID, models.UserRequest{ID: userRequest.ID, Login: login, Password: userRequest.Password})
 	return login, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByIDFromDB:")
 }
 
-func (c *CacheDecorator) AddingUserToDB(ctx context.Context, id int, login, password string) error {
-	err := c.userProvider.AddingUserToDB(ctx, id, login, password)
+func (c *CacheDecorator) AddingUserToDB(ctx context.Context, userRequest models.UserRequest) error {
+	err := c.userProvider.AddingUserToDB(ctx, userRequest)
 	if err != nil {
 		return errors.Wrap(err, "CacheDecorator.userProvider.AddingUserToDB:")
 	}
 
-	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login, Password: password})
+	c.setUserMapValue(userRequest.ID, userRequest)
 	return errors.Wrap(err, "CacheDecorator.userProvider.AddingUserToDB:")
 }
 
-func (c *CacheDecorator) UpdateUserInDB(ctx context.Context, id int, login, password string) error {
-	err := c.userProvider.UpdateUserInDB(ctx, id, login, password)
+func (c *CacheDecorator) UpdateUserInDB(ctx context.Context, userRequest models.UserRequest) error {
+	err := c.userProvider.UpdateUserInDB(ctx, userRequest)
 	if err != nil {
 		return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUserInDB:")
 	}
 
-	user, exists := c.getUserMapValue(id)
+	user, exists := c.getUserMapValue(userRequest.ID)
 	if exists {
-		c.setUserMapValue(id, user)
+		c.setUserMapValue(userRequest.ID, user)
 	}
+
 	return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUserInDB:")
 }
 
-func (c *CacheDecorator) SetFile(file *multipart.FileHeader) {
-	c.userProvider.SetFile(file)
-}
-func (c *CacheDecorator) UploadFile(ctx context.Context) error {
-	return errors.Wrap(c.userProvider.UploadFile(ctx), "CacheDecorator.userProvider.UploadFile:")
+func (c *CacheDecorator) UploadFile(ctx context.Context, id string, file *multipart.FileHeader) func(context.Context) error {
+	return c.userProvider.UploadFile(ctx, id, file)
 }
