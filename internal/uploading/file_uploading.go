@@ -1,4 +1,4 @@
-package utils
+package uploading
 
 import (
 	"io"
@@ -25,7 +25,6 @@ func SaveUploadedFile(file *multipart.FileHeader, dst string) error {
 		return errors.Wrap(err, "SaveUploadedFile os.Create:")
 	}
 	defer out.Close()
-
 	_, err = io.Copy(out, src)
 	return errors.Wrap(err, "SaveUploadedFile io.Copy:")
 }
