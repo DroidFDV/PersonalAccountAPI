@@ -12,6 +12,7 @@ type Config struct {
 	Debug           bool   `mapstructure:"debug"`
 	DatabaseURL     string `mapstructure:"database_url"`
 	FileStoragePatg string `mapstructure:"file_storage_path"`
+	MetricsPort     string `mapstructure:"metrics_port"`
 }
 
 func LoadConfig() (*Config, error) {

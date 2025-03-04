@@ -14,11 +14,11 @@ import (
 )
 
 type Handle struct {
-	userProvider  usecase.Provider
+	userProvider  usecase.UserProvider
 	workerManager *workers.Manager
 }
 
-func New(provider usecase.Provider, manager *workers.Manager) *Handle {
+func New(provider usecase.UserProvider, manager *workers.Manager) *Handle {
 	return &Handle{
 		userProvider:  provider,
 		workerManager: manager,
@@ -33,9 +33,9 @@ func (h *Handle) Login(c *gin.Context) {
 		return
 	}
 
-	id, err := h.userProvider.GetIDByLoginFromDB(c, user)
+	id, err := h.userProvider.GetIDByLogin(c, user)
 	if err != nil {
-		slog.Error(errors.Wrap(err, "Handle.Login userProvider.GetIDByLoginFromDB").Error())
+		slog.Error(errors.Wrap(err, "Handle.Login userProvider.GetIDByLogin").Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		return
 	}
@@ -56,9 +56,9 @@ func (h *Handle) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	login, err := h.userProvider.GetUserByIDFromDB(c, models.UserRequest{ID: id})
+	login, err := h.userProvider.GetUserByID(c, models.UserRequest{ID: id})
 	if err != nil {
-		slog.Error(errors.Wrap(err, "Handle.GetUserByID userProvider.GetUserByIDFromDB").Error())
+		slog.Error(errors.Wrap(err, "Handle.GetUserByID userProvider.GetUserByID").Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		return
 	}
@@ -78,9 +78,9 @@ func (h *Handle) AddUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.userProvider.AddingUserToDB(c, user); err != nil {
+	if err := h.userProvider.AddingUser(c, user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect user data"})
-		slog.Error(errors.Wrap(err, "Handle.AddUser userProvider.AddingUserToDB").Error())
+		slog.Error(errors.Wrap(err, "Handle.AddUser userProvider.AddingUser").Error())
 		return
 	}
 
@@ -95,9 +95,9 @@ func (h *Handle) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.userProvider.UpdateUserInDB(c, user); err != nil {
+	if err := h.userProvider.UpdateUser(c, user); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		slog.Error(errors.Wrap(err, "Handle.UpdateUser userProvider.UpdateUserInDB").Error())
+		slog.Error(errors.Wrap(err, "Handle.UpdateUser userProvider.UpdateUser").Error())
 		return
 	}
 
@@ -105,7 +105,6 @@ func (h *Handle) UpdateUser(c *gin.Context) {
 }
 
 func (h *Handle) UploadFile(c *gin.Context) {
-	id := c.Param("id")
 	file, err := c.FormFile("File")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
@@ -113,7 +112,7 @@ func (h *Handle) UploadFile(c *gin.Context) {
 		return
 	}
 
-	h.workerManager.SetJob(h.userProvider.UploadFile(context.TODO(), id, file))
+	h.workerManager.SetJob(h.userProvider.UploadFile(context.TODO(), file))
 	// todo: сделать колбэк для неудачной загрузки
 
 	c.JSON(http.StatusOK, gin.H{

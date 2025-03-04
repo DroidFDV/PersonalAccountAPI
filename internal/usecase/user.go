@@ -2,70 +2,59 @@ package usecase
 
 import (
 	"PersonalAccountAPI/internal/models"
-	"PersonalAccountAPI/internal/utils"
+	"PersonalAccountAPI/internal/repository"
+	"PersonalAccountAPI/internal/uploading"
 	"context"
 	"mime/multipart"
 	"path/filepath"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
 
 type UserUsecase struct {
-	db *pgx.Conn
+	repository repository.RepoProvider
 }
 
-func New(conn *pgx.Conn) *UserUsecase {
+func New(repository repository.RepoProvider) *UserUsecase {
 	return &UserUsecase{
-		db: conn,
+		repository: repository,
 	}
 }
 
-func (u *UserUsecase) GetIDByLoginFromDB(ctx context.Context, userRequest models.UserRequest) (int, error) {
+func (u *UserUsecase) GetIDByLogin(ctx context.Context, userRequest models.UserRequest) (int, error) {
 	userDTO := userRequest.ToDTO()
-	query := `SELECT id FROM users WHERE login = $1 AND password = $2`
-	err := u.db.QueryRow(ctx, query, userDTO.Login, userDTO.Password).Scan(&userDTO.ID)
-	// warning: бессмысленная проверка, т.к я не знаю как ее обработать
-	// if errors.Is(err, pgx.ErrNoRows) {
-	// 	return 0, errors.Wrap(err, "UserUsecase.GetIDByLoginFromDB pgx.QueryRow().Scan")
-	// }
+	id, err := u.repository.GetIDByLogin(ctx, userDTO)
 	if err != nil {
-		return userDTO.ID, errors.Wrap(err, "UserUsecase.GetIDByLoginFromDB pgx.QueryRow().Scan")
+		return id, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
 	}
-	return userDTO.ID, errors.Wrap(err, "UserUsecase.GetIDByLoginFromDB")
+	return id, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
 }
 
-func (u *UserUsecase) GetUserByIDFromDB(ctx context.Context, userRequest models.UserRequest) (string, error) {
+func (u *UserUsecase) GetUserByID(ctx context.Context, userRequest models.UserRequest) (string, error) {
 	userDTO := userRequest.ToDTO()
-	query := `SELECT login FROM users WHERE id = $1`
-	err := u.db.QueryRow(ctx, query, userDTO.ID).Scan(&userDTO.Login)
-	// if errors.Is(err, pgx.ErrNoRows) {
-	// 	return userDTO.Login, errors.Wrap(err, "UserUsecase.GetIDByLoginFromDB pgx.QueryRow().Scan")
-	// }
+	login, err := u.repository.GetUserByID(ctx, userDTO)
 	if err != nil {
-		return userDTO.Login, errors.Wrap(err, "UserUsecase.GetUserByIDFromDB pgx.QueryRow().Scan:")
+		return login, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
 	}
-	return userDTO.Login, errors.Wrap(err, "UserUsecase.GetUserByIDFromDB")
+	return login, errors.Wrap(err, "UserUsecase.GetUserByID")
 }
 
-func (u *UserUsecase) AddingUserToDB(ctx context.Context, userRequest models.UserRequest) error {
+func (u *UserUsecase) AddingUser(ctx context.Context, userRequest models.UserRequest) error {
 	userDTO := userRequest.ToDTO()
-	query := `INSERT INTO users (id, login, password) VALUES ($1, $2, $3)`
-	_, err := u.db.Exec(ctx, query, userDTO.ID, userDTO.Login, userDTO.Password)
-	return errors.Wrap(err, "UserUsecase.AddingUserToDB pgx.Exec:")
+	err := u.repository.AddingUser(ctx, userDTO)
+	return errors.Wrap(err, "UserUsecase.AddingUser pgx.Exec:")
 }
 
-func (u *UserUsecase) UpdateUserInDB(ctx context.Context, userRequest models.UserRequest) error {
+func (u *UserUsecase) UpdateUser(ctx context.Context, userRequest models.UserRequest) error {
 	userDTO := userRequest.ToDTO()
-	query := `UPDATE users SET login = $2, password = $3 WHERE id = $1`
-	_, err := u.db.Exec(ctx, query, userDTO.ID, userDTO.Login, userDTO.Password)
-	return errors.Wrap(err, "UserUsecase.UpdateUserInDB pgx.Exec:")
+	err := u.repository.UpdateUser(ctx, userDTO)
+	return errors.Wrap(err, "UserUsecase.UpdateUser pgx.Exec:")
 }
 
-func (u *UserUsecase) UploadFile(ctx context.Context, id string, file *multipart.FileHeader) func(context.Context) error {
+func (u *UserUsecase) UploadFile(ctx context.Context, file *multipart.FileHeader) func(context.Context) error {
 	return func(ctx context.Context) error {
-		dstPath := filepath.Join(models.UploadsDir, id)
-		err := utils.SaveUploadedFile(file, dstPath)
+		dstFilePath := filepath.Join(models.UploadsDir, file.Filename)
+		err := uploading.SaveUploadedFile(file, dstFilePath)
 		if err != nil {
 			return errors.Wrap(err, "UserUsecase.UploadFile utils.SaveUploadedFile:")
 		}

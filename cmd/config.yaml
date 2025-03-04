@@ -1,5 +1,6 @@
 app_name: "PersonalAccountApi"
-port: ":8080"
+port: "8080"
 debug: true
 database_url: "postgres://postgres:postgres@postgres:5432/postgres"
 file_storage_path: "/app/uploads"
+metrics_port: "9091"
