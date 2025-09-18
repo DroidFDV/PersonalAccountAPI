@@ -23,31 +23,31 @@ func main() {
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "main storage.GetConnect: Failed to load config"))
 	}
-	models.UploadsDir = cfg.FileStoragePatg
+	models.UploadsDir = cfg.Storage.Path
 
-	conn, err := storage.GetConnect(cfg.DatabaseURL)
+	conn, err := storage.GetConnect(cfg.GetDSN())
 	if err != nil {
 		log.Fatal(errors.Wrap(err, "main storage.GetConnect"))
 	}
 	defer conn.Close(context.Background())
 
-	if err := database.Migrate(cfg.DatabaseURL); err != nil {
+	if err := database.Migrate(cfg.GetDSN()); err != nil {
 		log.Fatal(errors.Wrap(err, "main database.Migrate"))
 	}
 
 	workerManager := workers.Run(10)
 
-	UserRepository := repository.New(conn)
-	userProvider := usecase.New(UserRepository)
+	userRepository := repository.New(conn)
+	userProvider := usecase.New(userRepository)
 	ttl, checkInterval := 5*time.Second, 10*time.Second
 	cacheProvider := cache.New(userProvider, ttl, checkInterval)
 
 	handle := handler.New(cacheProvider, workerManager)
 
 	router := app.NewRouter(handle)
-	metrics.InitMetrics(cfg.MetricsPort)
+	metrics.InitMetrics(cfg.Metrics.Port)
 	go metrics.UpdateMetrics(cacheProvider)
 
-	router.Run(":" + cfg.Port)
+	router.Run(":" + cfg.App.Port)
 
 }
