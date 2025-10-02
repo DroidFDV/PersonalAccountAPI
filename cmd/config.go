@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
@@ -52,8 +53,10 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.Wrap(err, "unable to decode embedded config file")
 	}
 
-	if err := godotenv.Load(); err != nil {
-		return nil, errors.Wrap(err, "failed to load .env")
+	if _, err := os.Stat(".env"); err == nil {
+		if err := godotenv.Load(); err != nil {
+			return nil, errors.Wrap(err, "failed to load .env")
+		}
 	}
 
 	// Поддержка переменных окружения (префикс, например, APP_PORT)
