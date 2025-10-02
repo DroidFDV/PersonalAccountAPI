@@ -34,11 +34,11 @@ func Run() error {
 		return errors.Wrap(err, "main database.Migrate")
 	}
 
-	workerManager := workers.Run(10)
+	workerManager := workers.Run(cfg.App.WorkersNumber)
 
 	userRepository := repository.New(conn)
 	userProvider := usecase.New(userRepository)
-	ttl, checkInterval := 5*time.Second, 10*time.Second
+	ttl, checkInterval := cfg.App.Cache.Ttl*time.Second, cfg.App.Cache.Interval*time.Second
 	cacheProvider := cache.New(userProvider, ttl, checkInterval)
 
 	handle := handler.New(cacheProvider, workerManager)

@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
@@ -16,8 +17,13 @@ var config embed.FS
 
 type Config struct {
 	App struct {
-		Name  string
-		Port  string
+		Name          string
+		Port          string
+		WorkersNumber int
+		Cache         struct {
+			Ttl      time.Duration
+			Interval time.Duration
+		}
 		Debug bool
 	}
 

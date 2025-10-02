@@ -1,9 +1,13 @@
 app:
   name: "PersonalAccountApi"
   port: "8080"
+  workers_number: 10
+  cache:
+    ttl: 5
+    interval: 10
   debug: true
 
-DB:
+db:
   host: "postgres"
   port: 5432
   user: "postgres"
