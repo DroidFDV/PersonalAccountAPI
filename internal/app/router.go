@@ -10,11 +10,16 @@ import (
 func NewRouter(handler *handler.Handle) *gin.Engine {
 	router := gin.Default()
 
-	router.POST("/user", handler.AddUser)
-	router.POST("/login", handler.Login)
-	router.GET("/user/:id", handler.GetUserByID)
-	router.PUT("/user", handler.UpdateUser)
-	router.POST("/file/upload", handler.UploadFile)
+	user := router.Group("/user")
+	user.POST("/", handler.AddUser)
+	user.GET("/:id", handler.GetUserByID)
+	user.PUT("/", handler.UpdateUser)
+
+	login := router.Group("/login")
+	login.POST("/", handler.Login)
+
+	file := router.Group("/file")
+	file.POST("/upload", handler.UploadFile)
 
 	router.Use(metrics.PrometheusMiddleware())
 

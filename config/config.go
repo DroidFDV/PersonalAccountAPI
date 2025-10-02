@@ -85,3 +85,11 @@ func (c *Config) GetDSN() string {
 		c.DB.Name,
 	)
 }
+
+func (c *Config) GetCacheTTL() time.Duration {
+	return c.App.Cache.Ttl
+}
+
+func (c *Config) GetCacheInterval() time.Duration {
+	return c.App.Cache.Interval
+}

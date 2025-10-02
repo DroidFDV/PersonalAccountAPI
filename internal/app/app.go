@@ -38,8 +38,8 @@ func Run() error {
 
 	userRepository := repository.New(conn)
 	userProvider := usecase.New(userRepository)
-	ttl, checkInterval := cfg.App.Cache.Ttl*time.Second, cfg.App.Cache.Interval*time.Second
-	cacheProvider := cache.New(userProvider, ttl, checkInterval)
+	cacheProvider := cache.New(userProvider, cfg.GetCacheTTL()*time.Second)
+	go cacheProvider.RunCleaner(cfg.GetCacheInterval() * time.Second)
 
 	handle := handler.New(cacheProvider, workerManager)
 

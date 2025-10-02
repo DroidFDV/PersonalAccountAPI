@@ -21,7 +21,7 @@ type CacheDecorator struct {
 	// userLoginMap map[string]models.UserRequest
 }
 
-func New(user *usecase.UserUsecase, ttl time.Duration, checkInterval time.Duration) *CacheDecorator {
+func New(user *usecase.UserUsecase, ttl time.Duration) *CacheDecorator {
 	cache := &CacheDecorator{
 		userProvider: user,
 		ttl:          ttl,
@@ -31,26 +31,29 @@ func New(user *usecase.UserUsecase, ttl time.Duration, checkInterval time.Durati
 		// userLoginMap: make(map[string]models.UserRequest),
 	}
 
-	go cache.Cleaner(checkInterval)
-
 	return cache
 }
 
-func (c *CacheDecorator) Cleaner(checkInterval time.Duration) {
+func (c *CacheDecorator) RunCleaner(checkInterval time.Duration) {
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
 	for {
-		time.Sleep(checkInterval)
-		c.mx.RLock()
-
-		for key, ttl := range c.ttls {
-			if time.Now().After(ttl) {
-				c.mx.Lock()
-				delete(c.userMap, key)
-				delete(c.ttls, key)
-				c.mx.Unlock()
+		select {
+		case <-ticker.C:
+			c.mx.RLock()
+			for key, ttl := range c.ttls {
+				if time.Now().After(ttl) {
+					c.mx.Lock()
+					delete(c.userMap, key)
+					delete(c.ttls, key)
+					c.mx.Unlock()
+				}
 			}
+			c.mx.RUnlock()
+		case <-context.Background().Done():
+			return
 		}
-
-		c.mx.RUnlock()
 	}
 }
 
