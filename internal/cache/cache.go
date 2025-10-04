@@ -13,33 +13,25 @@ import (
 
 type CacheDecorator struct {
 	userProvider usecase.UserProvider
-	ttl          time.Duration
-
-	mu      sync.RWMutex
-	userMap map[int]models.UserRequest
-	ttls    map[int]time.Time
-	// userLoginMap map[string]models.UserRequest
+	mu           sync.RWMutex
+	userMap      map[int]models.WrapUser
 }
 
 func New(user *usecase.UserUsecase, ttl time.Duration) *CacheDecorator {
 	cache := &CacheDecorator{
 		userProvider: user,
-		ttl:          ttl,
 		mu:           sync.RWMutex{},
-		userMap:      make(map[int]models.UserRequest),
-		ttls:         make(map[int]time.Time),
-		// userLoginMap: make(map[string]models.UserRequest),
+		userMap:      make(map[int]models.WrapUser),
 	}
 
 	return cache
 }
 
 func (c *CacheDecorator) delete() {
-	for key, ttl := range c.ttls {
-		if time.Now().After(ttl) {
+	for key, wrapped := range c.userMap {
+		if time.Now().After(wrapped.TTL) {
 			c.mu.Lock()
 			delete(c.userMap, key)
-			delete(c.ttls, key)
 			c.mu.Unlock()
 		}
 	}
@@ -65,27 +57,26 @@ func (c *CacheDecorator) getUserMapValue(key int) (models.UserRequest, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	outOfTTL := c.ttls[key]
-	if time.Now().After(outOfTTL) {
+	wrapped := c.userMap[key]
+	if time.Now().After(wrapped.TTL) {
 		return models.UserRequest{}, false
 	}
 
-	user, exists := c.userMap[key]
-	return user, exists
+	wrapped, exists := c.userMap[key]
+	return wrapped.User, exists
 }
 
 func (c *CacheDecorator) setUserMapValue(key int, user models.UserRequest) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.userMap[key] = user
-	c.ttls[key] = time.Now().Add(c.ttl)
+	c.userMap[key] = models.WrapUser{User: user}
 }
 
 // todo: не эффективно, добавить карту пользователей по логину
 func (c *CacheDecorator) getKeyByLogPass(login, password string) int {
-	for key, mapValue := range c.userMap {
-		if (mapValue.Login == login) && (mapValue.Password == password) {
+	for key, wrapped := range c.userMap {
+		if (wrapped.User.Login == login) && (wrapped.User.Password == password) {
 			return key
 		}
 	}
