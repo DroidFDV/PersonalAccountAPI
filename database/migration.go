@@ -34,8 +34,7 @@ func Migrate(connString string) error {
 		return errors.Wrap(err, "Migrate goose.GetDBVersion: cannot get migration version")
 	}
 
-	err = goose.Up(db, "migrations")
-	if err != nil {
+	if err = goose.Up(db, "migrations"); err != nil {
 		if err := goose.DownTo(db, "migrations", version); err != nil {
 			slog.Error(
 				"Migrate goose.DownTo: cannot rollback migrations",
