@@ -34,7 +34,7 @@ func Run() error {
 		return errors.Wrap(err, "main database.Migrate")
 	}
 
-	workerManager := workers.Run(cfg.App.WorkersNumber)
+	workerManager := workers.Run(cfg.GetWorkersNum(), cfg.GetWorkersQueueLen())
 
 	userRepository := repository.New(conn)
 	userProvider := usecase.New(userRepository)

@@ -1,7 +1,9 @@
 app:
   name: "PersonalAccountApi"
   port: "8080"
-  workers_number: 10
+  workers:
+    number: 10
+    queue_len: 1000
   cache:
     ttl: 5
     interval: 10

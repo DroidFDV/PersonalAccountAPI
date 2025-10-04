@@ -17,10 +17,13 @@ var config embed.FS
 
 type Config struct {
 	App struct {
-		Name          string
-		Port          string
-		WorkersNumber int
-		Cache         struct {
+		Name    string
+		Port    string
+		Workers struct {
+			Number   int
+			QueueLen int
+		}
+		Cache struct {
 			Ttl      time.Duration
 			Interval time.Duration
 		}
@@ -92,4 +95,12 @@ func (c *Config) GetCacheTTL() time.Duration {
 
 func (c *Config) GetCacheInterval() time.Duration {
 	return c.App.Cache.Interval
+}
+
+func (c *Config) GetWorkersNum() int {
+	return c.App.Workers.Number
+}
+
+func (c *Config) GetWorkersQueueLen() int {
+	return c.App.Workers.QueueLen
 }
