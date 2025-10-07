@@ -9,6 +9,8 @@ import (
 
 func NewRouter(handler *handler.Handle) *gin.Engine {
 	router := gin.Default()
+	//NOTE: важен порядок
+	router.Use(metrics.PrometheusMiddleware())
 
 	user := router.Group("/user")
 	user.POST("/", handler.AddUser)
@@ -20,8 +22,6 @@ func NewRouter(handler *handler.Handle) *gin.Engine {
 
 	file := router.Group("/file")
 	file.POST("/upload", handler.UploadFile)
-
-	router.Use(metrics.PrometheusMiddleware())
 
 	return router
 }

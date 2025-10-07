@@ -47,6 +47,7 @@ func (c *CacheDecorator) RunCleaner(checkInterval time.Duration) {
 		select {
 		case <-ticker.C:
 			c.delete()
+		//WARNING: not work
 		case <-context.Background().Done():
 			return
 		}
