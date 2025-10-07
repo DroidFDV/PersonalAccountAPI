@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"PersonalAccountAPI/internal/cache"
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
@@ -55,12 +56,16 @@ func InitMetrics(port string) {
 }
 
 func UpdateMetrics(c *cache.CacheDecorator) {
-	ticker := time.NewTicker(1)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
-
-		cacheSize.Set(float64(c.GetCacheSize()))
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ticker.C:
+			cacheSize.Set(float64(c.GetCacheSize()))
+			slog.Warn("Cache size", slog.Any("time", time.Now()), slog.Any("cache size", c.GetCacheSize()))
+		case <-context.Background().Done():
+			return
+		}
 	}
 }
 
@@ -71,6 +76,9 @@ func PrometheusMiddleware() gin.HandlerFunc {
 		status := c.Writer.Status()
 		method := c.Request.Method
 		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
+		}
 		duration := time.Since(start).Seconds()
 
 		httpRequests.WithLabelValues(method, http.StatusText(status), path).Inc()

@@ -15,6 +15,7 @@ type CacheDecorator struct {
 	userProvider usecase.UserProvider
 	mu           sync.RWMutex
 	userMap      map[int]models.WrapUser
+	ttl          time.Duration
 }
 
 func New(user *usecase.UserUsecase, ttl time.Duration) *CacheDecorator {
@@ -22,6 +23,7 @@ func New(user *usecase.UserUsecase, ttl time.Duration) *CacheDecorator {
 		userProvider: user,
 		mu:           sync.RWMutex{},
 		userMap:      make(map[int]models.WrapUser),
+		ttl:          ttl,
 	}
 
 	return cache
@@ -44,8 +46,6 @@ func (c *CacheDecorator) RunCleaner(checkInterval time.Duration) {
 	for {
 		select {
 		case <-ticker.C:
-			c.mu.RLock()
-			defer c.mu.RUnlock()
 			c.delete()
 		case <-context.Background().Done():
 			return
@@ -70,10 +70,9 @@ func (c *CacheDecorator) setUserMapValue(key int, user models.UserRequest) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.userMap[key] = models.WrapUser{User: user}
+	c.userMap[key] = models.WrapUser{User: user, TTL: time.Now().Add(c.ttl)}
 }
 
-// todo: не эффективно, добавить карту пользователей по логину
 func (c *CacheDecorator) getKeyByLogPass(login, password string) int {
 	for key, wrapped := range c.userMap {
 		if (wrapped.User.Login == login) && (wrapped.User.Password == password) {
