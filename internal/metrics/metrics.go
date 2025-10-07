@@ -62,7 +62,6 @@ func UpdateMetrics(c *cache.CacheDecorator) {
 		select {
 		case <-ticker.C:
 			cacheSize.Set(float64(c.GetCacheSize()))
-			slog.Warn("Cache size", slog.Any("time", time.Now()), slog.Any("cache size", c.GetCacheSize()))
 		case <-context.Background().Done():
 			return
 		}
