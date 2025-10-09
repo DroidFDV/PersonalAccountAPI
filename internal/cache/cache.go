@@ -90,33 +90,33 @@ func (c *CacheDecorator) GetCacheSize() int {
 	return len(c.userMap)
 }
 
-func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.UserRequest) (int, error) {
+func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.UserRequest) (models.UserResponse, error) {
 	keyID := c.getKeyByLogPass(userRequest.Login, userRequest.Password)
 	user, ok := c.getUserMapValue(keyID)
 	if ok {
-		return user.ID, nil
+		return user.ToResponce(), nil
 	}
 
-	id, err := c.userProvider.GetIDByLogin(ctx, userRequest)
+	userResponce, err := c.userProvider.GetIDByLogin(ctx, userRequest)
 	if err != nil {
-		return 0, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
+		return models.UserResponse{}, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
 	}
-	c.setUserMapValue(id, models.UserRequest{ID: id, Login: userRequest.Login, Password: userRequest.Password})
-	return id, nil
+	c.setUserMapValue(userResponce.ID, models.UserRequest{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
+	return userResponce, nil
 }
 
-func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.UserRequest) (string, error) {
+func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.UserRequest) (models.UserResponse, error) {
 	user, ok := c.getUserMapValue(userRequest.ID)
 	if ok {
-		return user.Login, nil
+		return user.ToResponce(), nil
 	}
 
-	login, err := c.userProvider.GetUserByID(ctx, userRequest)
+	userResponce, err := c.userProvider.GetUserByID(ctx, userRequest)
 	if err != nil {
-		return "", errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
+		return models.UserResponse{}, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
 	}
-	c.setUserMapValue(userRequest.ID, models.UserRequest{ID: userRequest.ID, Login: login, Password: userRequest.Password})
-	return login, nil
+	c.setUserMapValue(userRequest.ID, models.UserRequest{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
+	return userResponce, nil
 }
 
 func (c *CacheDecorator) AddingUser(ctx context.Context, userRequest models.UserRequest) error {

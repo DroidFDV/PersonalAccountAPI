@@ -18,20 +18,20 @@ func New(conn *pgx.Conn) *UserRepository {
 	}
 }
 
-func (ur *UserRepository) GetIDByLogin(ctx context.Context, user models.UserDTO) (int, error) {
+func (ur *UserRepository) GetIDByLogin(ctx context.Context, user models.UserDTO) (models.UserDTO, error) {
 	query := `SELECT id FROM users WHERE login = $1 AND password = $2`
 	if err := ur.db.QueryRow(ctx, query, user.Login, user.Password).Scan(&user.ID); err != nil {
-		return 0, errors.Wrap(err, "UserUsecase.GetIDByLogin pgx.QueryRow().Scan")
+		return models.UserDTO{}, errors.Wrap(err, "UserUsecase.GetIDByLogin pgx.QueryRow().Scan")
 	}
-	return user.ID, nil
+	return user, nil
 }
 
-func (ur *UserRepository) GetUserByID(ctx context.Context, user models.UserDTO) (string, error) {
+func (ur *UserRepository) GetUserByID(ctx context.Context, user models.UserDTO) (models.UserDTO, error) {
 	query := `SELECT login FROM users WHERE id = $1`
 	if err := ur.db.QueryRow(ctx, query, user.ID).Scan(&user.Login); err != nil {
-		return "", errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
+		return models.UserDTO{}, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
 	}
-	return user.Login, nil
+	return user, nil
 }
 
 func (ur *UserRepository) AddingUser(ctx context.Context, user models.UserDTO) error {

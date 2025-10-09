@@ -7,8 +7,8 @@ import (
 )
 
 type UserProvider interface {
-	GetIDByLogin(ctx context.Context, user models.UserRequest) (int, error)
-	GetUserByID(ctx context.Context, user models.UserRequest) (string, error)
+	GetIDByLogin(ctx context.Context, user models.UserRequest) (models.UserResponse, error)
+	GetUserByID(ctx context.Context, user models.UserRequest) (models.UserResponse, error)
 	AddingUser(ctx context.Context, user models.UserRequest) error
 	UpdateUser(ctx context.Context, user models.UserRequest) error
 	UploadFile(ctx context.Context, file *multipart.FileHeader) func(ctx context.Context) error

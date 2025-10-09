@@ -21,35 +21,31 @@ func New(repository repository.RepoProvider) *UserUsecase {
 	}
 }
 
-func (u *UserUsecase) GetIDByLogin(ctx context.Context, userRequest models.UserRequest) (int, error) {
-	userDTO := userRequest.ToDTO()
-	id, err := u.repository.GetIDByLogin(ctx, userDTO)
+func (u *UserUsecase) GetIDByLogin(ctx context.Context, userRequest models.UserRequest) (models.UserResponse, error) {
+	user, err := u.repository.GetIDByLogin(ctx, userRequest.ToDTO())
 	if err != nil {
-		return 0, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
+		return models.UserResponse{}, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
 	}
-	return id, nil
+	return user.ToResponce(), nil
 }
 
-func (u *UserUsecase) GetUserByID(ctx context.Context, userRequest models.UserRequest) (string, error) {
-	userDTO := userRequest.ToDTO()
-	login, err := u.repository.GetUserByID(ctx, userDTO)
+func (u *UserUsecase) GetUserByID(ctx context.Context, userRequest models.UserRequest) (models.UserResponse, error) {
+	user, err := u.repository.GetUserByID(ctx, userRequest.ToDTO())
 	if err != nil {
-		return "", errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
+		return models.UserResponse{}, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
 	}
-	return login, nil
+	return user.ToResponce(), nil
 }
 
 func (u *UserUsecase) AddingUser(ctx context.Context, userRequest models.UserRequest) error {
-	userDTO := userRequest.ToDTO()
-	if err := u.repository.AddingUser(ctx, userDTO); err != nil {
+	if err := u.repository.AddingUser(ctx, userRequest.ToDTO()); err != nil {
 		return errors.Wrap(err, "UserUsecase.AddingUser pgx.Exec:")
 	}
 	return nil
 }
 
 func (u *UserUsecase) UpdateUser(ctx context.Context, userRequest models.UserRequest) error {
-	userDTO := userRequest.ToDTO()
-	if err := u.repository.UpdateUser(ctx, userDTO); err != nil {
+	if err := u.repository.UpdateUser(ctx, userRequest.ToDTO()); err != nil {
 		return errors.Wrap(err, "UserUsecase.UpdateUser pgx.Exec:")
 	}
 	return nil

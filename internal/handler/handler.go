@@ -31,19 +31,19 @@ func (h *Handle) Login(c *gin.Context) {
 		return
 	}
 
-	id, err := h.userProvider.GetIDByLogin(c, user)
+	userResponce, err := h.userProvider.GetIDByLogin(c, user)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		slog.Error("Handle.Login userProvider.GetIDByLogin", slog.Any("error", err))
 		return
 	}
-	if id == 0 {
+	if userResponce.ID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		slog.Error("Handle.Login authentication failed", slog.String("reason", "invalid credentials"))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id})
+	c.JSON(http.StatusOK, gin.H{"id": userResponce.ID})
 }
 
 func (h *Handle) GetUserByID(c *gin.Context) {
@@ -56,19 +56,19 @@ func (h *Handle) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	login, err := h.userProvider.GetUserByID(c, models.UserRequest{ID: id})
+	userResponce, err := h.userProvider.GetUserByID(c, models.UserRequest{ID: id})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		slog.Error("Handle.GetUserByID userProvider.GetUserByID", slog.Any("error", err))
 		return
 	}
-	if login == "" {
+	if userResponce.Login == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		slog.Error("Handle.GetUserByID authorization failed", slog.String("reason", "user not found or access denied"))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": login})
+	c.JSON(http.StatusOK, gin.H{"user": userResponce.Login})
 }
 
 func (h *Handle) AddUser(c *gin.Context) {
