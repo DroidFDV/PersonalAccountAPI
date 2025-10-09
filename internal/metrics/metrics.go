@@ -13,21 +13,14 @@ import (
 )
 
 var (
-	httpRequests = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Total number of HTTP requests",
-		},
-		[]string{"method", "status", "path"},
-	)
-
-	httpRequestDuration = prometheus.NewHistogramVec(
+	//NOTE: что лучше для этого выбрать
+	httpRequests = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
-			Help:    "Duration of HTTP requests in seconds",
+			Name:    "http_requests_total",
+			Help:    "Total number of HTTP requests with duration",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"method", "path"},
+		[]string{"method", "status", "path"},
 	)
 
 	cacheSize = prometheus.NewGauge(
@@ -41,7 +34,6 @@ var (
 func MetricsRegistration() {
 	prometheus.MustRegister(httpRequests)
 	prometheus.MustRegister(cacheSize)
-	prometheus.MustRegister(httpRequestDuration)
 }
 
 func InitMetrics(port string) {
@@ -81,7 +73,6 @@ func PrometheusMiddleware() gin.HandlerFunc {
 		}
 		duration := time.Since(start).Seconds()
 
-		httpRequests.WithLabelValues(method, http.StatusText(status), path).Inc()
-		httpRequestDuration.WithLabelValues(method, path).Observe(duration)
+		httpRequests.WithLabelValues(method, http.StatusText(status), path).Observe(duration)
 	}
 }
