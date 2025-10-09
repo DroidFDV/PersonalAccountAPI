@@ -21,11 +21,11 @@ type UserDTO struct {
 	Password string
 }
 
-func (ur *UserRequest) ToDTO() UserDTO {
+func (u *UserRequest) ToDTO() UserDTO {
 	return UserDTO{
-		ID:       ur.ID,
-		Login:    ur.Login,
-		Password: ur.Password,
+		ID:       u.ID,
+		Login:    u.Login,
+		Password: u.Password,
 	}
 }
 
