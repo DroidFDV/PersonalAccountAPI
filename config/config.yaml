@@ -3,7 +3,7 @@ app:
   port: "8080"
   workers:
     number: 10
-    queue_len: 1000
+    queuelen: 1000
   cache:
     ttl: 60
     interval: 10
@@ -16,8 +16,12 @@ db:
   pass: "postgres"
   name: "postgres"
 
-storage:
-  path: "/app/uploads"
-
 metrics:
   port: "9091"
+
+filestorage: 
+  endpoint: "minio:9000"
+  user: "minio"
+  password: "miniosecret"
+  usessl: false
+  bucketname: "uploads"

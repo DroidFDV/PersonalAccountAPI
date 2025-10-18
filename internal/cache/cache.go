@@ -4,7 +4,6 @@ import (
 	"PersonalAccountAPI/internal/models"
 	"PersonalAccountAPI/internal/usecase"
 	"context"
-	"mime/multipart"
 	"sync"
 	"time"
 
@@ -138,8 +137,4 @@ func (c *CacheDecorator) UpdateUser(ctx context.Context, userRequest models.User
 	}
 
 	return nil
-}
-
-func (c *CacheDecorator) UploadFile(ctx context.Context, file *multipart.FileHeader) func(context.Context) error {
-	return c.userProvider.UploadFile(ctx, file)
 }

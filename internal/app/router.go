@@ -21,7 +21,7 @@ func NewRouter(handler *handler.Handle) *gin.Engine {
 	login.POST("/", handler.Login)
 
 	file := router.Group("/file")
-	file.POST("/upload", handler.UploadFile)
+	file.POST("/upload/:id", handler.UploadFile)
 
 	return router
 }

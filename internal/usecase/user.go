@@ -3,10 +3,7 @@ package usecase
 import (
 	"PersonalAccountAPI/internal/models"
 	"PersonalAccountAPI/internal/repository"
-	"PersonalAccountAPI/internal/uploading"
 	"context"
-	"mime/multipart"
-	"path/filepath"
 
 	"github.com/pkg/errors"
 )
@@ -49,15 +46,4 @@ func (u *UserUsecase) UpdateUser(ctx context.Context, userRequest models.UserReq
 		return errors.Wrap(err, "UserUsecase.UpdateUser pgx.Exec:")
 	}
 	return nil
-}
-
-func (u *UserUsecase) UploadFile(ctx context.Context, file *multipart.FileHeader) func(context.Context) error {
-	return func(ctx context.Context) error {
-		dstFilePath := filepath.Join(models.UploadsDir, file.Filename)
-		err := uploading.SaveUploadedFile(file, dstFilePath)
-		if err != nil {
-			return errors.Wrap(err, "UserUsecase.UploadFile utils.SaveUploadedFile:")
-		}
-		return nil
-	}
 }

@@ -2,8 +2,6 @@ package models
 
 import "time"
 
-var UploadsDir string
-
 type UserRequest struct {
 	ID       int    `json:"id"`
 	Login    string `json:"login"`
@@ -25,6 +23,15 @@ type UserResponse struct {
 	ID       int
 	Login    string
 	Password string
+}
+
+// NOTE: куда-то надо перенести
+type S3Config struct {
+	Endpoint        string
+	AccessKeyID     string
+	SecretAccessKey string
+	UseSSL          bool
+	BucketName      string
 }
 
 func (u *UserRequest) ToDTO() UserDTO {
@@ -50,6 +57,3 @@ func (u *UserRequest) ToResponce() UserResponse {
 		Password: u.Password,
 	}
 }
-
-// type IDResponse struct {}
-// type UserResponse struct {}

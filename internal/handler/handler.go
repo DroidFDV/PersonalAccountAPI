@@ -2,24 +2,29 @@ package handler
 
 import (
 	"PersonalAccountAPI/internal/models"
+	"PersonalAccountAPI/internal/uploading"
 	"PersonalAccountAPI/internal/usecase"
 	"PersonalAccountAPI/internal/workers"
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-faster/errors"
 )
 
 type Handle struct {
-	userProvider  usecase.UserProvider
-	workerManager *workers.Manager
+	userProvider   usecase.UserProvider
+	workerManager  *workers.Manager
+	uploadProvider uploading.UploadingProvider
 }
 
-func New(provider usecase.UserProvider, manager *workers.Manager) *Handle {
+func New(provider usecase.UserProvider, manager *workers.Manager, uploadProvider uploading.UploadingProvider) *Handle {
 	return &Handle{
-		userProvider:  provider,
-		workerManager: manager,
+		userProvider:   provider,
+		workerManager:  manager,
+		uploadProvider: uploadProvider,
 	}
 }
 
@@ -106,14 +111,26 @@ func (h *Handle) UpdateUser(c *gin.Context) {
 }
 
 func (h *Handle) UploadFile(c *gin.Context) {
-	file, err := c.FormFile("File")
+	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
 		slog.Error("Handle.UploadFile gin.FormFile", slog.Any("error", err))
 		return
 	}
 
-	h.workerManager.SetJob(h.userProvider.UploadFile(c, file))
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
+		slog.Error("Handle.UploadFile gin.Param", slog.String("reason", "no parameters received"))
+		return
+	}
+
+	h.workerManager.SetJob(func(ctx context.Context) error {
+		if err := h.uploadProvider.Upload(c, id, file); err != nil {
+			return errors.Wrap(err, "SetJob uploadProvider.Upload")
+		}
+		return nil
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "File uploaded successfully",

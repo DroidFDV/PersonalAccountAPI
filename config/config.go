@@ -1,6 +1,7 @@
 package config
 
 import (
+	"PersonalAccountAPI/internal/models"
 	"bytes"
 	"embed"
 	"fmt"
@@ -38,12 +39,16 @@ type Config struct {
 		Name string
 	}
 
-	Storage struct {
-		Path string
-	}
-
 	Metrics struct {
 		Port string
+	}
+
+	FileStorage struct {
+		Endpoint   string
+		User       string
+		Password   string
+		UseSSL     bool
+		BucketName string
 	}
 }
 
@@ -103,4 +108,18 @@ func (c *Config) GetWorkersNum() int {
 
 func (c *Config) GetWorkersQueueLen() int {
 	return c.App.Workers.QueueLen
+}
+
+func (c *Config) GetS3Config() models.S3Config {
+	return models.S3Config{
+		Endpoint:        c.FileStorage.Endpoint,
+		AccessKeyID:     c.FileStorage.User,
+		SecretAccessKey: c.FileStorage.Password,
+		UseSSL:          c.FileStorage.UseSSL,
+		BucketName:      c.FileStorage.BucketName,
+	}
+}
+
+func (c *Config) GetS3BucketName() string {
+	return c.FileStorage.BucketName
 }
