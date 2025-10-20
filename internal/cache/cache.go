@@ -17,7 +17,7 @@ type CacheDecorator struct {
 	ttl          time.Duration
 }
 
-func New(user *usecase.UserUsecase, ttl time.Duration) *CacheDecorator {
+func New(user usecase.UserProvider, ttl time.Duration) *CacheDecorator {
 	cache := &CacheDecorator{
 		userProvider: user,
 		mu:           sync.RWMutex{},
@@ -29,16 +29,17 @@ func New(user *usecase.UserUsecase, ttl time.Duration) *CacheDecorator {
 }
 
 func (c *CacheDecorator) delete() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	for key, wrapped := range c.userMap {
 		if time.Now().After(wrapped.TTL) {
-			c.mu.Lock()
 			delete(c.userMap, key)
-			c.mu.Unlock()
 		}
 	}
 }
 
-func (c *CacheDecorator) RunCleaner(checkInterval time.Duration) {
+func (c *CacheDecorator) RunCleaner(ctx context.Context, checkInterval time.Duration) {
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
 
@@ -47,7 +48,7 @@ func (c *CacheDecorator) RunCleaner(checkInterval time.Duration) {
 		case <-ticker.C:
 			c.delete()
 		//WARNING: not work
-		case <-context.Background().Done():
+		case <-ctx.Done():
 			return
 		}
 	}

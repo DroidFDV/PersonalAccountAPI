@@ -125,6 +125,7 @@ func (h *Handle) UploadFile(c *gin.Context) {
 		return
 	}
 
+	//NOTE: вопрос о сохранении файла
 	reqCtx := c.Request.Context()
 	h.workerManager.SetJob(func(ctx context.Context) error {
 		if err := h.uploadProvider.Upload(reqCtx, id, file); err != nil {

@@ -41,7 +41,7 @@ func Run() error {
 	userRepository := repository.New(conn)
 	userProvider := usecase.New(userRepository)
 	cacheProvider := cache.New(userProvider, cfg.GetCacheTTL()*time.Second)
-	go cacheProvider.RunCleaner(cfg.GetCacheInterval() * time.Second)
+	go cacheProvider.RunCleaner(context.Background(), cfg.GetCacheInterval()*time.Second)
 	workerManager := workers.Run(cfg.GetWorkersNum(), cfg.GetWorkersQueueLen())
 	uploadProvider := uploading.New(s3Client, cfg.GetS3BucketName())
 
@@ -49,7 +49,7 @@ func Run() error {
 
 	router := NewRouter(handle)
 	metrics.InitMetrics(cfg.Metrics.Port)
-	go metrics.UpdateMetrics(cacheProvider)
+	go metrics.UpdateMetrics(context.Background(), cacheProvider)
 
 	return router.Run(":" + cfg.App.Port)
 }

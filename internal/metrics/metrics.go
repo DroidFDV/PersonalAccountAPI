@@ -52,7 +52,7 @@ func InitMetrics(port string) {
 	}()
 }
 
-func UpdateMetrics(c *cache.CacheDecorator) {
+func UpdateMetrics(ctx context.Context, c *cache.CacheDecorator) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -60,7 +60,7 @@ func UpdateMetrics(c *cache.CacheDecorator) {
 		case <-ticker.C:
 			cacheSize.Set(float64(c.GetCacheSize()))
 		//WARNING: not work
-		case <-context.Background().Done():
+		case <-ctx.Done():
 			return
 		}
 	}
