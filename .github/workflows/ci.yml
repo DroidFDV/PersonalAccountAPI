@@ -23,7 +23,7 @@ jobs:
         run: go mod verify
 
       - name: Run tests
-        run: go test -v ./...
+        run: go test -v -race ./...
 
       - name: Run linters
         uses: golangci/golangci-lint-action@v6
@@ -32,4 +32,4 @@ jobs:
           args: --timeout=5m
 
       - name: Build binary (optional)
-        run: go build -v ./cmd
+        run: go build -v ./cmd/main.go
