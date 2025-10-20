@@ -38,11 +38,16 @@ func MetricsRegistration() {
 
 func InitMetrics(port string) {
 	MetricsRegistration()
+	server := &http.Server{
+		Addr:         ":" + port,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {
 		slog.Info("Starting metrics server", slog.String("port", port))
-		if err := http.ListenAndServe(":"+port, nil); err != nil {
-			slog.Error("InitMetrics http.ListenAndServe", slog.Any("error", err))
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("InitMetrics server.ListenAndServe", slog.Any("error", err))
 		}
 	}()
 }

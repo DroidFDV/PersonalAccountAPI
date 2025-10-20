@@ -125,8 +125,9 @@ func (h *Handle) UploadFile(c *gin.Context) {
 		return
 	}
 
+	reqCtx := c.Request.Context()
 	h.workerManager.SetJob(func(ctx context.Context) error {
-		if err := h.uploadProvider.Upload(c, id, file); err != nil {
+		if err := h.uploadProvider.Upload(reqCtx, id, file); err != nil {
 			return errors.Wrap(err, "SetJob uploadProvider.Upload")
 		}
 		return nil

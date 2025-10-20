@@ -10,11 +10,17 @@ type Manager struct {
 	workerPoolSize int
 }
 
-func New(workerCount, queueLen int) *Manager {
+func new(workerCount, queueLen int) *Manager {
 	return &Manager{
 		workerPoolSize: workerCount,
 		jobQueue:       make(chan func(context.Context) error, queueLen),
 	}
+}
+
+func Run(workerCount, queueLen int) *Manager {
+	manager := new(workerCount, queueLen)
+	go manager.StartPool()
+	return manager
 }
 
 func (m *Manager) StartPool() {
@@ -41,10 +47,4 @@ func (m *Manager) SetJob(job func(ctx context.Context) error) {
 
 func (m *Manager) Stop() {
 	close(m.jobQueue)
-}
-
-func Run(workerCount, queueLen int) *Manager {
-	manager := New(workerCount, queueLen)
-	go manager.StartPool()
-	return manager
 }
