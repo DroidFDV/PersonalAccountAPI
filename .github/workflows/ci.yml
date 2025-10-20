@@ -32,4 +32,4 @@ jobs:
           args: --timeout=5m
 
       - name: Build binary (optional)
-        run: go build -v .
+        run: go build -v ./cmd
