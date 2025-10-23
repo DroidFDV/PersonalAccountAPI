@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCacheDecorator_GetIDByLogin_CacheHit(t *testing.T) {
@@ -21,12 +22,12 @@ func TestCacheDecorator_GetIDByLogin_CacheHit(t *testing.T) {
 
 	// Первый вызов — должен вызвать провайдера
 	_, err := cache.GetIDByLogin(context.Background(), req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 1)
 
 	// Второй вызов — должен взять из кэша
 	_, err = cache.GetIDByLogin(context.Background(), req)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 1) // всё ещё 1 раз
 }
 
@@ -38,12 +39,14 @@ func TestCacheDecorator_TTL_Expiry(t *testing.T) {
 
 	req := models.UserRequest{Login: "test", Password: "pass"}
 
-	_, _ = cache.GetIDByLogin(context.Background(), req)
+	_, err := cache.GetIDByLogin(context.Background(), req)
+	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 1)
 
 	time.Sleep(150 * time.Millisecond)
 
-	_, _ = cache.GetIDByLogin(context.Background(), req)
+	_, err = cache.GetIDByLogin(context.Background(), req)
+	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 2)
 }
 
