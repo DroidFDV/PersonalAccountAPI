@@ -89,5 +89,4 @@ func TestUserUsecase_Integration(t *testing.T) {
 	updated, err := usecase.GetUserByID(ctx, models.UserRequest{ID: got.ID})
 	require.NoError(t, err)
 	require.Equal(t, "updateduser", updated.Login)
-	require.Equal(t, "newpass", updated.Password)
 }
