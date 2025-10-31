@@ -9,7 +9,7 @@ type UserRequest struct {
 }
 
 type WrapUser struct {
-	User UserRequest
+	User UserDTO
 	TTL  time.Time
 }
 

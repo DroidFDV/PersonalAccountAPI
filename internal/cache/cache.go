@@ -2,7 +2,7 @@ package cache
 
 import (
 	"PersonalAccountAPI/internal/models"
-	"PersonalAccountAPI/internal/usecase"
+	"PersonalAccountAPI/internal/repository"
 	"context"
 	"sync"
 	"time"
@@ -11,15 +11,15 @@ import (
 )
 
 type CacheDecorator struct {
-	userProvider usecase.UserProvider
+	repoProvider repository.RepoProvider
 	mu           sync.RWMutex
 	userMap      map[int]models.WrapUser
 	ttl          time.Duration
 }
 
-func New(user usecase.UserProvider, ttl time.Duration) *CacheDecorator {
+func New(repository repository.RepoProvider, ttl time.Duration) *CacheDecorator {
 	cache := &CacheDecorator{
-		userProvider: user,
+		repoProvider: repository,
 		mu:           sync.RWMutex{},
 		userMap:      make(map[int]models.WrapUser),
 		ttl:          ttl,
@@ -54,20 +54,20 @@ func (c *CacheDecorator) RunCleaner(ctx context.Context, checkInterval time.Dura
 	}
 }
 
-func (c *CacheDecorator) getUserMapValue(key int) (models.UserRequest, bool) {
+func (c *CacheDecorator) getUserMapValue(key int) (models.UserDTO, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	wrapped := c.userMap[key]
 	if time.Now().After(wrapped.TTL) {
-		return models.UserRequest{}, false
+		return models.UserDTO{}, false
 	}
 
 	wrapped, exists := c.userMap[key]
 	return wrapped.User, exists
 }
 
-func (c *CacheDecorator) setUserMapValue(key int, user models.UserRequest) {
+func (c *CacheDecorator) setUserMapValue(key int, user models.UserDTO) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -90,45 +90,45 @@ func (c *CacheDecorator) GetCacheSize() int {
 	return len(c.userMap)
 }
 
-func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.UserRequest) (models.UserResponse, error) {
+func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.UserDTO) (models.UserDTO, error) {
 	keyID := c.getKeyByLogPass(userRequest.Login, userRequest.Password)
 	user, ok := c.getUserMapValue(keyID)
 	if ok {
-		return user.ToResponce(), nil
+		return user, nil
 	}
 
-	userResponce, err := c.userProvider.GetIDByLogin(ctx, userRequest)
+	userResponce, err := c.repoProvider.GetIDByLogin(ctx, userRequest)
 	if err != nil {
-		return models.UserResponse{}, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
+		return models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
 	}
-	c.setUserMapValue(userResponce.ID, models.UserRequest{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
+	c.setUserMapValue(userResponce.ID, models.UserDTO{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
 	return userResponce, nil
 }
 
-func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.UserRequest) (models.UserResponse, error) {
+func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.UserDTO) (models.UserDTO, error) {
 	user, ok := c.getUserMapValue(userRequest.ID)
 	if ok {
-		return user.ToResponce(), nil
+		return user, nil
 	}
 
-	userResponce, err := c.userProvider.GetUserByID(ctx, userRequest)
+	userResponce, err := c.repoProvider.GetUserByID(ctx, userRequest)
 	if err != nil {
-		return models.UserResponse{}, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
+		return models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
 	}
-	c.setUserMapValue(userRequest.ID, models.UserRequest{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
+	c.setUserMapValue(userRequest.ID, models.UserDTO{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
 	return userResponce, nil
 }
 
-func (c *CacheDecorator) AddingUser(ctx context.Context, userRequest models.UserRequest) error {
-	if err := c.userProvider.AddingUser(ctx, userRequest); err != nil {
+func (c *CacheDecorator) AddingUser(ctx context.Context, userRequest models.UserDTO) error {
+	if err := c.repoProvider.AddingUser(ctx, userRequest); err != nil {
 		return errors.Wrap(err, "CacheDecorator.userProvider.AddingUser:")
 	}
 	c.setUserMapValue(userRequest.ID, userRequest)
 	return nil
 }
 
-func (c *CacheDecorator) UpdateUser(ctx context.Context, userRequest models.UserRequest) error {
-	if err := c.userProvider.UpdateUser(ctx, userRequest); err != nil {
+func (c *CacheDecorator) UpdateUser(ctx context.Context, userRequest models.UserDTO) error {
+	if err := c.repoProvider.UpdateUser(ctx, userRequest); err != nil {
 		return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUser:")
 	}
 

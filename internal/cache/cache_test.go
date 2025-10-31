@@ -13,12 +13,12 @@ import (
 )
 
 func TestCacheDecorator_GetIDByLogin_CacheHit(t *testing.T) {
-	mockProvider := &mocks.MockUserProvider{}
-	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(models.UserResponse{ID: 123, Login: "test"}, nil)
+	mockProvider := &mocks.MockRepoProvider{}
+	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(models.UserDTO{ID: 123, Login: "test"}, nil)
 
 	cache := New(mockProvider, 10*time.Second)
 
-	req := models.UserRequest{Login: "test", Password: "pass"}
+	req := models.UserDTO{Login: "test", Password: "pass"}
 
 	// Первый вызов — должен вызвать провайдера
 	_, err := cache.GetIDByLogin(context.Background(), req)
@@ -32,12 +32,12 @@ func TestCacheDecorator_GetIDByLogin_CacheHit(t *testing.T) {
 }
 
 func TestCacheDecorator_TTL_Expiry(t *testing.T) {
-	mockProvider := &mocks.MockUserProvider{}
-	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(models.UserResponse{ID: 123, Login: "test"}, nil).Twice()
+	mockProvider := &mocks.MockRepoProvider{}
+	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(models.UserDTO{ID: 123, Login: "test"}, nil).Twice()
 
 	cache := New(mockProvider, 100*time.Millisecond)
 
-	req := models.UserRequest{Login: "test", Password: "pass"}
+	req := models.UserDTO{Login: "test", Password: "pass"}
 
 	_, err := cache.GetIDByLogin(context.Background(), req)
 	require.NoError(t, err)
@@ -51,9 +51,9 @@ func TestCacheDecorator_TTL_Expiry(t *testing.T) {
 }
 
 func TestCacheDecorator_RunCleaner(t *testing.T) {
-	mockProvider := &mocks.MockUserProvider{}
+	mockProvider := &mocks.MockRepoProvider{}
 	cache := New(mockProvider, 50*time.Millisecond)
-	cache.setUserMapValue(1, models.UserRequest{ID: 1})
+	cache.setUserMapValue(1, models.UserDTO{ID: 1})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
