@@ -34,8 +34,8 @@ func (u *UserUsecase) GetUserByID(ctx context.Context, userRequest models.UserRe
 	return user.ToResponce(), nil
 }
 
-func (u *UserUsecase) AddingUser(ctx context.Context, userRequest models.UserRequest) error {
-	if err := u.repository.AddingUser(ctx, userRequest.ToDTO()); err != nil {
+func (u *UserUsecase) AddUser(ctx context.Context, userRequest models.UserRequest) error {
+	if err := u.repository.AddUser(ctx, userRequest.ToDTO()); err != nil {
 		return errors.Wrap(err, "UserUsecase.AddingUser pgx.Exec:")
 	}
 	return nil

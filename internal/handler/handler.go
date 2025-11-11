@@ -14,114 +14,114 @@ import (
 	"github.com/go-faster/errors"
 )
 
-type Handle struct {
+type Handler struct {
 	userProvider   usecase.UserProvider
 	workerManager  *workers.Manager
 	uploadProvider uploading.UploadingProvider
 }
 
-func New(provider usecase.UserProvider, manager *workers.Manager, uploadProvider uploading.UploadingProvider) *Handle {
-	return &Handle{
+func New(provider usecase.UserProvider, manager *workers.Manager, uploadProvider uploading.UploadingProvider) *Handler {
+	return &Handler{
 		userProvider:   provider,
 		workerManager:  manager,
 		uploadProvider: uploadProvider,
 	}
 }
 
-func (h *Handle) Login(c *gin.Context) {
+func (h *Handler) Login(c *gin.Context) {
 	var user models.UserRequest
 	if err := c.ShouldBind(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		slog.Error("Handle.Login gin.ShouldBind", slog.Any("error", err))
+		slog.Error("Handler.Login gin.ShouldBind", slog.Any("error", err))
 		return
 	}
 
 	userResponce, err := h.userProvider.GetIDByLogin(c, user)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		slog.Error("Handle.Login userProvider.GetIDByLogin", slog.Any("error", err))
+		slog.Error("Handler.Login userProvider.GetIDByLogin", slog.Any("error", err))
 		return
 	}
 	if userResponce.ID == 0 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		slog.Error("Handle.Login authentication failed", slog.String("reason", "invalid credentials"))
+		slog.Error("Handler.Login authentication failed", slog.String("reason", "invalid credentials"))
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"id": userResponce.ID})
 }
 
-func (h *Handle) GetUserByID(c *gin.Context) {
+func (h *Handler) GetUserByID(c *gin.Context) {
 	idParam := c.Param("id")
 
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		slog.Error("Handle.GetUserByID strconv.Atoi", slog.Any("error", err))
+		slog.Error("Handler.GetUserByID strconv.Atoi", slog.Any("error", err))
 		return
 	}
 
 	userResponce, err := h.userProvider.GetUserByID(c, models.UserRequest{ID: id})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		slog.Error("Handle.GetUserByID userProvider.GetUserByID", slog.Any("error", err))
+		slog.Error("Handler.GetUserByID userProvider.GetUserByID", slog.Any("error", err))
 		return
 	}
 	if userResponce.Login == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		slog.Error("Handle.GetUserByID authorization failed", slog.String("reason", "user not found or access denied"))
+		slog.Error("Handler.GetUserByID authorization failed", slog.String("reason", "user not found or access denied"))
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": userResponce.Login})
 }
 
-func (h *Handle) AddUser(c *gin.Context) {
+func (h *Handler) AddUser(c *gin.Context) {
 	var user models.UserRequest
 	if err := c.ShouldBind(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		slog.Error("Handle.AddUser gin.ShouldBind", slog.Any("error", err))
+		slog.Error("Handler.AddUser gin.ShouldBind", slog.Any("error", err))
 		return
 	}
 
-	if err := h.userProvider.AddingUser(c, user); err != nil {
+	if err := h.userProvider.AddUser(c, user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect user data"})
-		slog.Error("Handle.AddUser userProvider.AddingUser", slog.Any("error", err))
+		slog.Error("Handler.AddUser userProvider.AddingUser", slog.Any("error", err))
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": "added"})
 }
 
-func (h *Handle) UpdateUser(c *gin.Context) {
+func (h *Handler) UpdateUser(c *gin.Context) {
 	var user models.UserRequest
 	if err := c.ShouldBind(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		slog.Error("Handle.UpdateUser gin.ShouldBind", slog.Any("error", err))
+		slog.Error("Handler.UpdateUser gin.ShouldBind", slog.Any("error", err))
 		return
 	}
 
 	if err := h.userProvider.UpdateUser(c, user); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		slog.Error("Handle.UpdateUser userProvider.UpdateUser", slog.Any("error", err))
+		slog.Error("Handler.UpdateUser userProvider.UpdateUser", slog.Any("error", err))
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user by id: " + strconv.FormatInt(int64(user.ID), 10): "updated"})
 }
 
-func (h *Handle) UploadFile(c *gin.Context) {
+func (h *Handler) UploadFile(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
-		slog.Error("Handle.UploadFile gin.FormFile", slog.Any("error", err))
+		slog.Error("Handler.UploadFile gin.FormFile", slog.Any("error", err))
 		return
 	}
 
 	id := c.Param("id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		slog.Error("Handle.UploadFile gin.Param", slog.String("reason", "no parameters received"))
+		slog.Error("Handler.UploadFile gin.Param", slog.String("reason", "no parameters received"))
 		return
 	}
 

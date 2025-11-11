@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func NewRouter(handler *handler.Handle) *gin.Engine {
+func NewRouter(handler *handler.Handler) *gin.Engine {
 	router := gin.Default()
 	//NOTE: важен порядок
 	router.Use(metrics.PrometheusMiddleware())

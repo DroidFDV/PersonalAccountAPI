@@ -34,7 +34,7 @@ func (ur *UserRepository) GetUserByID(ctx context.Context, user models.UserDTO) 
 	return user, nil
 }
 
-func (ur *UserRepository) AddingUser(ctx context.Context, user models.UserDTO) error {
+func (ur *UserRepository) AddUser(ctx context.Context, user models.UserDTO) error {
 	query := `INSERT INTO users (id, login, password) VALUES ($1, $2, $3)`
 	if _, err := ur.db.Exec(ctx, query, user.ID, user.Login, user.Password); err != nil {
 		return errors.Wrap(err, "UserUsecase.AddingUser pgx.Exec:")

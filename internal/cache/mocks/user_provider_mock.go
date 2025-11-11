@@ -22,7 +22,7 @@ func (m *MockUserProvider) GetUserByID(ctx context.Context, user models.UserRequ
 	return args.Get(0).(models.UserResponse), args.Error(1)
 }
 
-func (m *MockUserProvider) AddingUser(ctx context.Context, user models.UserRequest) error {
+func (m *MockUserProvider) AddUser(ctx context.Context, user models.UserRequest) error {
 	args := m.Called(ctx, user)
 	return args.Error(0)
 }

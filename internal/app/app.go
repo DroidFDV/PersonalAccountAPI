@@ -45,9 +45,9 @@ func Run() error {
 	workerManager := workers.Run(cfg.GetWorkersNum(), cfg.GetWorkersQueueLen())
 	uploadProvider := uploading.New(s3Client, cfg.GetS3BucketName())
 
-	handle := handler.New(userProvider, workerManager, uploadProvider)
+	handler := handler.New(userProvider, workerManager, uploadProvider)
 
-	router := NewRouter(handle)
+	router := NewRouter(handler)
 	metrics.InitMetrics(cfg.Metrics.Port)
 	go metrics.UpdateMetrics(context.Background(), cacheProvider)
 

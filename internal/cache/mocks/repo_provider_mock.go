@@ -22,7 +22,7 @@ func (m *MockRepoProvider) GetUserByID(ctx context.Context, user models.UserDTO)
 	return args.Get(0).(models.UserDTO), args.Error(1)
 }
 
-func (m *MockRepoProvider) AddingUser(ctx context.Context, user models.UserDTO) error {
+func (m *MockRepoProvider) AddUser(ctx context.Context, user models.UserDTO) error {
 	args := m.Called(ctx, user)
 	return args.Error(0)
 }

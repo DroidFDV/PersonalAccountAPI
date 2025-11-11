@@ -61,7 +61,7 @@ func TestUserUsecase_Integration(t *testing.T) {
 		Login:    "testuser",
 		Password: "securepass",
 	}
-	err := usecase.AddingUser(ctx, userReq)
+	err := usecase.AddUser(ctx, userReq)
 	require.NoError(t, err)
 
 	// === Тест: GetIDByLogin ===

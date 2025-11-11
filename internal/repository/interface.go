@@ -8,6 +8,6 @@ import (
 type RepoProvider interface {
 	GetIDByLogin(ctx context.Context, user models.UserDTO) (models.UserDTO, error)
 	GetUserByID(ctx context.Context, user models.UserDTO) (models.UserDTO, error)
-	AddingUser(ctx context.Context, user models.UserDTO) error
+	AddUser(ctx context.Context, user models.UserDTO) error
 	UpdateUser(ctx context.Context, user models.UserDTO) error
 }

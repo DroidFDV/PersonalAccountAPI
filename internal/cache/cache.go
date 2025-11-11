@@ -54,20 +54,18 @@ func (c *CacheDecorator) RunCleaner(ctx context.Context, checkInterval time.Dura
 	}
 }
 
-func (c *CacheDecorator) getUserMapValue(key int) (models.UserDTO, bool) {
+func (c *CacheDecorator) get(key int) (models.UserDTO, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	wrapped := c.userMap[key]
-	if time.Now().After(wrapped.TTL) {
-		return models.UserDTO{}, false
+	if wrapped, exists := c.userMap[key]; exists && time.Now().Before(wrapped.TTL) {
+		return wrapped.User, true
 	}
 
-	wrapped, exists := c.userMap[key]
-	return wrapped.User, exists
+	return models.UserDTO{}, false
 }
 
-func (c *CacheDecorator) setUserMapValue(key int, user models.UserDTO) {
+func (c *CacheDecorator) set(key int, user models.UserDTO) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -92,7 +90,7 @@ func (c *CacheDecorator) GetCacheSize() int {
 
 func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.UserDTO) (models.UserDTO, error) {
 	keyID := c.getKeyByLogPass(userRequest.Login, userRequest.Password)
-	user, ok := c.getUserMapValue(keyID)
+	user, ok := c.get(keyID)
 	if ok {
 		return user, nil
 	}
@@ -101,12 +99,12 @@ func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.Us
 	if err != nil {
 		return models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
 	}
-	c.setUserMapValue(userResponce.ID, models.UserDTO{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
+	c.set(userResponce.ID, models.UserDTO{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
 	return userResponce, nil
 }
 
 func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.UserDTO) (models.UserDTO, error) {
-	user, ok := c.getUserMapValue(userRequest.ID)
+	user, ok := c.get(userRequest.ID)
 	if ok {
 		return user, nil
 	}
@@ -115,15 +113,15 @@ func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.Use
 	if err != nil {
 		return models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
 	}
-	c.setUserMapValue(userRequest.ID, models.UserDTO{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
+	c.set(userRequest.ID, models.UserDTO{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
 	return userResponce, nil
 }
 
-func (c *CacheDecorator) AddingUser(ctx context.Context, userRequest models.UserDTO) error {
-	if err := c.repoProvider.AddingUser(ctx, userRequest); err != nil {
+func (c *CacheDecorator) AddUser(ctx context.Context, userRequest models.UserDTO) error {
+	if err := c.repoProvider.AddUser(ctx, userRequest); err != nil {
 		return errors.Wrap(err, "CacheDecorator.userProvider.AddingUser:")
 	}
-	c.setUserMapValue(userRequest.ID, userRequest)
+	c.set(userRequest.ID, userRequest)
 	return nil
 }
 
@@ -132,9 +130,9 @@ func (c *CacheDecorator) UpdateUser(ctx context.Context, userRequest models.User
 		return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUser:")
 	}
 
-	user, exists := c.getUserMapValue(userRequest.ID)
+	user, exists := c.get(userRequest.ID)
 	if exists {
-		c.setUserMapValue(userRequest.ID, user)
+		c.set(userRequest.ID, user)
 	}
 
 	return nil
