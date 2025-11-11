@@ -21,12 +21,12 @@ func TestCacheDecorator_GetIDByLogin_CacheHit(t *testing.T) {
 	req := models.UserDTO{Login: "test", Password: "pass"}
 
 	// Первый вызов — должен вызвать провайдера
-	_, err := cache.GetIDByLogin(context.Background(), req)
+	_, err := cache.GetIDByLogin(context.Background(), &req)
 	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 1)
 
 	// Второй вызов — должен взять из кэша
-	_, err = cache.GetIDByLogin(context.Background(), req)
+	_, err = cache.GetIDByLogin(context.Background(), &req)
 	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 1) // всё ещё 1 раз
 }
@@ -39,13 +39,13 @@ func TestCacheDecorator_TTL_Expiry(t *testing.T) {
 
 	req := models.UserDTO{Login: "test", Password: "pass"}
 
-	_, err := cache.GetIDByLogin(context.Background(), req)
+	_, err := cache.GetIDByLogin(context.Background(), &req)
 	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 1)
 
 	time.Sleep(150 * time.Millisecond)
 
-	_, err = cache.GetIDByLogin(context.Background(), req)
+	_, err = cache.GetIDByLogin(context.Background(), &req)
 	require.NoError(t, err)
 	mockProvider.AssertNumberOfCalls(t, "GetIDByLogin", 2)
 }
@@ -53,7 +53,7 @@ func TestCacheDecorator_TTL_Expiry(t *testing.T) {
 func TestCacheDecorator_RunCleaner(t *testing.T) {
 	mockProvider := &mocks.MockRepoProvider{}
 	cache := New(mockProvider, 50*time.Millisecond)
-	cache.set(1, models.UserDTO{ID: 1})
+	cache.set(1, &models.UserDTO{ID: 1})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

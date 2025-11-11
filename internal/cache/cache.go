@@ -54,7 +54,7 @@ func (c *CacheDecorator) RunCleaner(ctx context.Context, checkInterval time.Dura
 	}
 }
 
-func (c *CacheDecorator) get(key int) (models.UserDTO, bool) {
+func (c *CacheDecorator) get(key int) (*models.UserDTO, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -62,10 +62,10 @@ func (c *CacheDecorator) get(key int) (models.UserDTO, bool) {
 		return wrapped.User, true
 	}
 
-	return models.UserDTO{}, false
+	return &models.UserDTO{}, false
 }
 
-func (c *CacheDecorator) set(key int, user models.UserDTO) {
+func (c *CacheDecorator) set(key int, user *models.UserDTO) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -88,7 +88,7 @@ func (c *CacheDecorator) GetCacheSize() int {
 	return len(c.userMap)
 }
 
-func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.UserDTO) (models.UserDTO, error) {
+func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest *models.UserDTO) (*models.UserDTO, error) {
 	keyID := c.getKeyByLogPass(userRequest.Login, userRequest.Password)
 	user, ok := c.get(keyID)
 	if ok {
@@ -97,13 +97,13 @@ func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest models.Us
 
 	userResponce, err := c.repoProvider.GetIDByLogin(ctx, userRequest)
 	if err != nil {
-		return models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
+		return &models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
 	}
-	c.set(userResponce.ID, models.UserDTO{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
+	c.set(userResponce.ID, &models.UserDTO{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
 	return userResponce, nil
 }
 
-func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.UserDTO) (models.UserDTO, error) {
+func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest *models.UserDTO) (*models.UserDTO, error) {
 	user, ok := c.get(userRequest.ID)
 	if ok {
 		return user, nil
@@ -111,13 +111,13 @@ func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest models.Use
 
 	userResponce, err := c.repoProvider.GetUserByID(ctx, userRequest)
 	if err != nil {
-		return models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
+		return &models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
 	}
-	c.set(userRequest.ID, models.UserDTO{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
+	c.set(userRequest.ID, &models.UserDTO{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
 	return userResponce, nil
 }
 
-func (c *CacheDecorator) AddUser(ctx context.Context, userRequest models.UserDTO) error {
+func (c *CacheDecorator) AddUser(ctx context.Context, userRequest *models.UserDTO) error {
 	if err := c.repoProvider.AddUser(ctx, userRequest); err != nil {
 		return errors.Wrap(err, "CacheDecorator.userProvider.AddingUser:")
 	}
@@ -125,7 +125,7 @@ func (c *CacheDecorator) AddUser(ctx context.Context, userRequest models.UserDTO
 	return nil
 }
 
-func (c *CacheDecorator) UpdateUser(ctx context.Context, userRequest models.UserDTO) error {
+func (c *CacheDecorator) UpdateUser(ctx context.Context, userRequest *models.UserDTO) error {
 	if err := c.repoProvider.UpdateUser(ctx, userRequest); err != nil {
 		return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUser:")
 	}

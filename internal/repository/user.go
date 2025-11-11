@@ -18,23 +18,23 @@ func New(conn *pgx.Conn) *UserRepository {
 	}
 }
 
-func (ur *UserRepository) GetIDByLogin(ctx context.Context, user models.UserDTO) (models.UserDTO, error) {
+func (ur *UserRepository) GetIDByLogin(ctx context.Context, user *models.UserDTO) (*models.UserDTO, error) {
 	query := `SELECT id FROM users WHERE login = $1 AND password = $2`
 	if err := ur.db.QueryRow(ctx, query, user.Login, user.Password).Scan(&user.ID); err != nil {
-		return models.UserDTO{}, errors.Wrap(err, "UserUsecase.GetIDByLogin pgx.QueryRow().Scan")
+		return &models.UserDTO{}, errors.Wrap(err, "UserUsecase.GetIDByLogin pgx.QueryRow().Scan")
 	}
 	return user, nil
 }
 
-func (ur *UserRepository) GetUserByID(ctx context.Context, user models.UserDTO) (models.UserDTO, error) {
+func (ur *UserRepository) GetUserByID(ctx context.Context, user *models.UserDTO) (*models.UserDTO, error) {
 	query := `SELECT login FROM users WHERE id = $1`
 	if err := ur.db.QueryRow(ctx, query, user.ID).Scan(&user.Login); err != nil {
-		return models.UserDTO{}, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
+		return &models.UserDTO{}, errors.Wrap(err, "UserUsecase.GetUserByID pgx.QueryRow().Scan:")
 	}
 	return user, nil
 }
 
-func (ur *UserRepository) AddUser(ctx context.Context, user models.UserDTO) error {
+func (ur *UserRepository) AddUser(ctx context.Context, user *models.UserDTO) error {
 	query := `INSERT INTO users (id, login, password) VALUES ($1, $2, $3)`
 	if _, err := ur.db.Exec(ctx, query, user.ID, user.Login, user.Password); err != nil {
 		return errors.Wrap(err, "UserUsecase.AddingUser pgx.Exec:")
@@ -42,7 +42,7 @@ func (ur *UserRepository) AddUser(ctx context.Context, user models.UserDTO) erro
 	return nil
 }
 
-func (ur *UserRepository) UpdateUser(ctx context.Context, user models.UserDTO) error {
+func (ur *UserRepository) UpdateUser(ctx context.Context, user *models.UserDTO) error {
 	query := `UPDATE users SET login = $2, password = $3 WHERE id = $1`
 	if _, err := ur.db.Exec(ctx, query, user.ID, user.Login, user.Password); err != nil {
 		return errors.Wrap(err, "UserUsecase.UpdateUser pgx.Exec:")

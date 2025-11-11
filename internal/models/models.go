@@ -9,7 +9,7 @@ type UserRequest struct {
 }
 
 type WrapUser struct {
-	User UserDTO
+	User *UserDTO
 	TTL  time.Time
 }
 
@@ -34,24 +34,24 @@ type S3Config struct {
 	BucketName      string
 }
 
-func (u *UserRequest) ToDTO() UserDTO {
-	return UserDTO{
+func (u *UserRequest) ToDTO() *UserDTO {
+	return &UserDTO{
 		ID:       u.ID,
 		Login:    u.Login,
 		Password: u.Password,
 	}
 }
 
-func (u *UserDTO) ToResponce() UserResponse {
-	return UserResponse{
+func (u *UserDTO) ToResponce() *UserResponse {
+	return &UserResponse{
 		ID:       u.ID,
 		Login:    u.Login,
 		Password: u.Password,
 	}
 }
 
-func (u *UserRequest) ToResponce() UserResponse {
-	return UserResponse{
+func (u *UserRequest) ToResponce() *UserResponse {
+	return &UserResponse{
 		ID:       u.ID,
 		Login:    u.Login,
 		Password: u.Password,

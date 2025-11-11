@@ -6,8 +6,8 @@ import (
 )
 
 type UserProvider interface {
-	GetIDByLogin(ctx context.Context, user models.UserRequest) (models.UserResponse, error)
-	GetUserByID(ctx context.Context, user models.UserRequest) (models.UserResponse, error)
-	AddUser(ctx context.Context, user models.UserRequest) error
-	UpdateUser(ctx context.Context, user models.UserRequest) error
+	GetIDByLogin(ctx context.Context, user *models.UserRequest) (*models.UserResponse, error)
+	GetUserByID(ctx context.Context, user *models.UserRequest) (*models.UserResponse, error)
+	AddUser(ctx context.Context, user *models.UserRequest) error
+	UpdateUser(ctx context.Context, user *models.UserRequest) error
 }

@@ -36,7 +36,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	userResponce, err := h.userProvider.GetIDByLogin(c, user)
+	userResponce, err := h.userProvider.GetIDByLogin(c, &user)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		slog.Error("Handler.Login userProvider.GetIDByLogin", slog.Any("error", err))
@@ -61,7 +61,7 @@ func (h *Handler) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	userResponce, err := h.userProvider.GetUserByID(c, models.UserRequest{ID: id})
+	userResponce, err := h.userProvider.GetUserByID(c, &models.UserRequest{ID: id})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
 		slog.Error("Handler.GetUserByID userProvider.GetUserByID", slog.Any("error", err))
@@ -84,7 +84,7 @@ func (h *Handler) AddUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.userProvider.AddUser(c, user); err != nil {
+	if err := h.userProvider.AddUser(c, &user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect user data"})
 		slog.Error("Handler.AddUser userProvider.AddingUser", slog.Any("error", err))
 		return
@@ -101,7 +101,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.userProvider.UpdateUser(c, user); err != nil {
+	if err := h.userProvider.UpdateUser(c, &user); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		slog.Error("Handler.UpdateUser userProvider.UpdateUser", slog.Any("error", err))
 		return

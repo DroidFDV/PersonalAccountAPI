@@ -61,18 +61,18 @@ func TestUserUsecase_Integration(t *testing.T) {
 		Login:    "testuser",
 		Password: "securepass",
 	}
-	err := usecase.AddUser(ctx, userReq)
+	err := usecase.AddUser(ctx, &userReq)
 	require.NoError(t, err)
 
 	// === Тест: GetIDByLogin ===
-	got, err := usecase.GetIDByLogin(ctx, userReq)
+	got, err := usecase.GetIDByLogin(ctx, &userReq)
 	require.NoError(t, err)
 	require.Equal(t, 1, got.ID)
 	require.Equal(t, "testuser", got.Login)
 	require.Equal(t, "securepass", got.Password)
 
 	// === Тест: GetUserByID ===
-	gotByID, err := usecase.GetUserByID(ctx, models.UserRequest{ID: got.ID})
+	gotByID, err := usecase.GetUserByID(ctx, &models.UserRequest{ID: got.ID})
 	require.NoError(t, err)
 	require.Equal(t, got.ID, gotByID.ID)
 	require.Equal(t, "testuser", gotByID.Login)
@@ -83,10 +83,10 @@ func TestUserUsecase_Integration(t *testing.T) {
 		Login:    "updateduser",
 		Password: "newpass",
 	}
-	err = usecase.UpdateUser(ctx, updateReq)
+	err = usecase.UpdateUser(ctx, &updateReq)
 	require.NoError(t, err)
 
-	updated, err := usecase.GetUserByID(ctx, models.UserRequest{ID: got.ID})
+	updated, err := usecase.GetUserByID(ctx, &models.UserRequest{ID: got.ID})
 	require.NoError(t, err)
 	require.Equal(t, "updateduser", updated.Login)
 }
