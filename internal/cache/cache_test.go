@@ -14,7 +14,7 @@ import (
 
 func TestCacheDecorator_GetIDByLogin_CacheHit(t *testing.T) {
 	mockProvider := &mocks.MockRepoProvider{}
-	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(models.UserDTO{ID: 123, Login: "test"}, nil)
+	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(&models.UserDTO{ID: 123, Login: "test"}, nil)
 
 	cache := New(mockProvider, 10*time.Second)
 
