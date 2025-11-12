@@ -10,19 +10,35 @@ import (
 	"github.com/pkg/errors"
 )
 
+type CacheCallbacks struct {
+	OnHit  func(operation string)
+	OnMiss func(operation string)
+}
+
+type Option func(*CacheDecorator)
+
+func WithCallbacks(cb CacheCallbacks) Option {
+	return func(c *CacheDecorator) {
+		c.callbacks = cb
+	}
+}
+
 type CacheDecorator struct {
 	repoProvider repository.RepoProvider
 	mu           sync.RWMutex
 	userMap      map[int]models.WrapUser
 	ttl          time.Duration
+
+	callbacks CacheCallbacks
 }
 
-func New(repository repository.RepoProvider, ttl time.Duration) *CacheDecorator {
+func New(repository repository.RepoProvider, ttl time.Duration, opts ...Option) *CacheDecorator {
 	cache := &CacheDecorator{
 		repoProvider: repository,
 		mu:           sync.RWMutex{},
 		userMap:      make(map[int]models.WrapUser),
 		ttl:          ttl,
+		callbacks:    CacheCallbacks{},
 	}
 
 	return cache
@@ -92,7 +108,13 @@ func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest *models.U
 	keyID := c.getKeyByLogPass(userRequest.Login, userRequest.Password)
 	user, ok := c.get(keyID)
 	if ok {
+		if c.callbacks.OnHit != nil {
+			c.callbacks.OnHit("GetIDByLogin")
+		}
 		return user, nil
+	}
+	if c.callbacks.OnHit != nil {
+		c.callbacks.OnMiss("GetIDByLogin")
 	}
 
 	userResponce, err := c.repoProvider.GetIDByLogin(ctx, userRequest)
@@ -106,7 +128,13 @@ func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest *models.U
 func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest *models.UserDTO) (*models.UserDTO, error) {
 	user, ok := c.get(userRequest.ID)
 	if ok {
+		if c.callbacks.OnHit != nil {
+			c.callbacks.OnHit("GetUserByID")
+		}
 		return user, nil
+	}
+	if c.callbacks.OnHit != nil {
+		c.callbacks.OnHit("GetUserByID")
 	}
 
 	userResponce, err := c.repoProvider.GetUserByID(ctx, userRequest)

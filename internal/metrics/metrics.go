@@ -29,11 +29,28 @@ var (
 			Help: "Number of users in cache",
 		},
 	)
+	cacheHits = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_hits_total",
+			Help: "Total number of cache hits",
+		},
+		[]string{"operation"},
+	)
+
+	cacheMisses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cache_misses_total",
+			Help: "Total number of cache misses",
+		},
+		[]string{"operation"},
+	)
 )
 
 func MetricsRegistration() {
 	prometheus.MustRegister(httpRequests)
 	prometheus.MustRegister(cacheSize)
+	prometheus.MustRegister(cacheHits)
+	prometheus.MustRegister(cacheMisses)
 }
 
 func InitMetrics(port string) {
@@ -64,6 +81,14 @@ func UpdateMetrics(ctx context.Context, c *cache.CacheDecorator) {
 			return
 		}
 	}
+}
+
+func CacheHit(operation string) {
+	cacheHits.WithLabelValues(operation).Inc()
+}
+
+func CacheMiss(operation string) {
+	cacheMisses.WithLabelValues(operation).Inc()
 }
 
 func PrometheusMiddleware() gin.HandlerFunc {

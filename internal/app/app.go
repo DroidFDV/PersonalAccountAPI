@@ -39,7 +39,11 @@ func Run() error {
 	}
 
 	userRepository := repository.New(conn)
-	cacheProvider := cache.New(userRepository, cfg.GetCacheTTL()*time.Second)
+	cacheProvider := cache.New(userRepository, cfg.GetCacheTTL()*time.Second,
+		cache.WithCallbacks(cache.CacheCallbacks{
+			OnHit:  func(op string) { metrics.CacheHit(op) },
+			OnMiss: func(op string) { metrics.CacheMiss(op) },
+		}))
 	userProvider := usecase.New(cacheProvider)
 	go cacheProvider.RunCleaner(context.Background(), cfg.GetCacheInterval()*time.Second)
 	workerManager := workers.Run(cfg.GetWorkersNum(), cfg.GetWorkersQueueLen())
