@@ -1,6 +1,6 @@
 package models
 
-var UploadsDir string = "./uploads"
+import "time"
 
 type UserRequest struct {
 	ID       int    `json:"id"`
@@ -8,6 +8,52 @@ type UserRequest struct {
 	Password string `json:"password"`
 }
 
-// type UserDTO struct {}
-// type IDResponse struct {}
-// type UserResponse struct {}
+type WrapUser struct {
+	User *UserDTO
+	TTL  time.Time
+}
+
+type UserDTO struct {
+	ID       int
+	Login    string
+	Password string
+}
+
+type UserResponse struct {
+	ID       int
+	Login    string
+	Password string
+}
+
+// NOTE: куда-то надо перенести
+type S3Config struct {
+	Endpoint        string
+	AccessKeyID     string
+	SecretAccessKey string
+	UseSSL          bool
+	BucketName      string
+}
+
+func (u *UserRequest) ToDTO() *UserDTO {
+	return &UserDTO{
+		ID:       u.ID,
+		Login:    u.Login,
+		Password: u.Password,
+	}
+}
+
+func (u *UserDTO) ToResponce() *UserResponse {
+	return &UserResponse{
+		ID:       u.ID,
+		Login:    u.Login,
+		Password: u.Password,
+	}
+}
+
+func (u *UserRequest) ToResponce() *UserResponse {
+	return &UserResponse{
+		ID:       u.ID,
+		Login:    u.Login,
+		Password: u.Password,
+	}
+}

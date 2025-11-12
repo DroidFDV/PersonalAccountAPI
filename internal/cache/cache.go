@@ -2,113 +2,166 @@ package cache
 
 import (
 	"PersonalAccountAPI/internal/models"
-	"PersonalAccountAPI/internal/usecase"
+	"PersonalAccountAPI/internal/repository"
 	"context"
-	"mime/multipart"
 	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 )
 
-type CacheDecorator struct {
-	mx           sync.RWMutex
-	userProvider *usecase.UserUsecase
-	userMap      map[int]models.UserRequest
-	userLoginMap map[string]models.UserRequest
-	// второстепенно ttl time.Duration
+type CacheCallbacks struct {
+	OnHit  func(operation string)
+	OnMiss func(operation string)
 }
 
-func New(user *usecase.UserUsecase) *CacheDecorator {
-	return &CacheDecorator{
-		mx:           sync.RWMutex{},
-		userProvider: user,
-		userMap:      make(map[int]models.UserRequest),
-		userLoginMap: make(map[string]models.UserRequest),
+type Option func(*CacheDecorator)
 
-		// ttl
+func WithCallbacks(cb CacheCallbacks) Option {
+	return func(c *CacheDecorator) {
+		c.callbacks = cb
 	}
 }
 
-func (c *CacheDecorator) getUserMapValue(key int) (models.UserRequest, bool) {
-	c.mx.RLock()
-	defer c.mx.RUnlock()
+type CacheDecorator struct {
+	repoProvider repository.RepoProvider
+	mu           sync.RWMutex
+	userMap      map[int]models.WrapUser
+	ttl          time.Duration
 
-	user, exists := c.userMap[key]
-	return user, exists
+	callbacks CacheCallbacks
 }
 
-func (c *CacheDecorator) setUserMapValue(key int, user models.UserRequest) {
-	c.mx.Lock()
-	defer c.mx.Unlock()
+func New(repository repository.RepoProvider, ttl time.Duration, opts ...Option) *CacheDecorator {
+	cache := &CacheDecorator{
+		repoProvider: repository,
+		mu:           sync.RWMutex{},
+		userMap:      make(map[int]models.WrapUser),
+		ttl:          ttl,
+		callbacks:    CacheCallbacks{},
+	}
 
-	c.userMap[key] = user
+	return cache
 }
 
-// не эффективно
+func (c *CacheDecorator) delete() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for key, wrapped := range c.userMap {
+		if time.Now().After(wrapped.TTL) {
+			delete(c.userMap, key)
+		}
+	}
+}
+
+func (c *CacheDecorator) RunCleaner(ctx context.Context, checkInterval time.Duration) {
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			c.delete()
+		//WARNING: not work
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (c *CacheDecorator) get(key int) (*models.UserDTO, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if wrapped, exists := c.userMap[key]; exists && time.Now().Before(wrapped.TTL) {
+		return wrapped.User, true
+	}
+
+	return &models.UserDTO{}, false
+}
+
+func (c *CacheDecorator) set(key int, user *models.UserDTO) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.userMap[key] = models.WrapUser{User: user, TTL: time.Now().Add(c.ttl)}
+}
+
 func (c *CacheDecorator) getKeyByLogPass(login, password string) int {
-	for key, mapValue := range c.userMap {
-		if (mapValue.Login == login) && (mapValue.Password == password) {
+	for key, wrapped := range c.userMap {
+		if (wrapped.User.Login == login) && (wrapped.User.Password == password) {
 			return key
 		}
 	}
 	return 0
 }
 
-func (c *CacheDecorator) GetIDByLoginFromDB(ctx context.Context, login, password string) (int, error) {
-	keyID := c.getKeyByLogPass(login, password)
-	user, ok := c.getUserMapValue(keyID)
+func (c *CacheDecorator) GetCacheSize() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return len(c.userMap)
+}
+
+func (c *CacheDecorator) GetIDByLogin(ctx context.Context, userRequest *models.UserDTO) (*models.UserDTO, error) {
+	keyID := c.getKeyByLogPass(userRequest.Login, userRequest.Password)
+	user, ok := c.get(keyID)
 	if ok {
-		return user.ID, nil
+		if c.callbacks.OnHit != nil {
+			c.callbacks.OnHit("GetIDByLogin")
+		}
+		return user, nil
+	}
+	if c.callbacks.OnHit != nil {
+		c.callbacks.OnMiss("GetIDByLogin")
 	}
 
-	id, err := c.userProvider.GetIDByLoginFromDB(ctx, login, password)
+	userResponce, err := c.repoProvider.GetIDByLogin(ctx, userRequest)
 	if err != nil {
-		return id, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLoginFromDB:")
+		return &models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetIDByLogin:")
 	}
-	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login, Password: password})
-	return id, errors.Wrap(err, "CacheDecorator.GetIDByLoginFromDB:")
+	c.set(userResponce.ID, &models.UserDTO{ID: userResponce.ID, Login: userRequest.Login, Password: userRequest.Password})
+	return userResponce, nil
 }
 
-func (c *CacheDecorator) GetUserByIDFromDB(ctx context.Context, id int) (string, error) {
-	user, ok := c.getUserMapValue(id)
+func (c *CacheDecorator) GetUserByID(ctx context.Context, userRequest *models.UserDTO) (*models.UserDTO, error) {
+	user, ok := c.get(userRequest.ID)
 	if ok {
-		return user.Login, nil
+		if c.callbacks.OnHit != nil {
+			c.callbacks.OnHit("GetUserByID")
+		}
+		return user, nil
+	}
+	if c.callbacks.OnHit != nil {
+		c.callbacks.OnHit("GetUserByID")
 	}
 
-	login, err := c.userProvider.GetUserByIDFromDB(ctx, id)
+	userResponce, err := c.repoProvider.GetUserByID(ctx, userRequest)
 	if err != nil {
-		return login, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByIDFromDB:")
+		return &models.UserDTO{}, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByID:")
 	}
-	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login})
-	return login, errors.Wrap(err, "CacheDecorator.userProvider.GetUserByIDFromDB:")
+	c.set(userRequest.ID, &models.UserDTO{ID: userRequest.ID, Login: userResponce.Login, Password: userRequest.Password})
+	return userResponce, nil
 }
 
-func (c *CacheDecorator) AddingUserToDB(ctx context.Context, id int, login, password string) error {
-	err := c.userProvider.AddingUserToDB(ctx, id, login, password)
-	if err != nil {
-		return errors.Wrap(err, "CacheDecorator.userProvider.AddingUserToDB:")
+func (c *CacheDecorator) AddUser(ctx context.Context, userRequest *models.UserDTO) error {
+	if err := c.repoProvider.AddUser(ctx, userRequest); err != nil {
+		return errors.Wrap(err, "CacheDecorator.userProvider.AddingUser:")
 	}
-
-	c.setUserMapValue(id, models.UserRequest{ID: id, Login: login, Password: password})
-	return errors.Wrap(err, "CacheDecorator.userProvider.AddingUserToDB:")
+	c.set(userRequest.ID, userRequest)
+	return nil
 }
 
-func (c *CacheDecorator) UpdateUserInDB(ctx context.Context, id int, login, password string) error {
-	err := c.userProvider.UpdateUserInDB(ctx, id, login, password)
-	if err != nil {
-		return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUserInDB:")
+func (c *CacheDecorator) UpdateUser(ctx context.Context, userRequest *models.UserDTO) error {
+	if err := c.repoProvider.UpdateUser(ctx, userRequest); err != nil {
+		return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUser:")
 	}
 
-	user, exists := c.getUserMapValue(id)
+	user, exists := c.get(userRequest.ID)
 	if exists {
-		c.setUserMapValue(id, user)
+		c.set(userRequest.ID, user)
 	}
-	return errors.Wrap(err, "CacheDecorator.userProvider.UpdateUserInDB:")
-}
 
-func (c *CacheDecorator) SetFile(file *multipart.FileHeader) {
-	c.userProvider.SetFile(file)
-}
-func (c *CacheDecorator) UploadFile(ctx context.Context) error {
-	return errors.Wrap(c.userProvider.UploadFile(ctx), "CacheDecorator.userProvider.UploadFile:")
+	return nil
 }

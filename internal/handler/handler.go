@@ -2,129 +2,137 @@ package handler
 
 import (
 	"PersonalAccountAPI/internal/models"
+	"PersonalAccountAPI/internal/uploading"
 	"PersonalAccountAPI/internal/usecase"
 	"PersonalAccountAPI/internal/workers"
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
-	"github.com/pkg/errors"
+	"github.com/go-faster/errors"
 )
 
-type Handle struct {
-	userProvider  usecase.Provider
-	workerManager *workers.Manager
+type Handler struct {
+	userProvider   usecase.UserProvider
+	workerManager  *workers.Manager
+	uploadProvider uploading.UploadingProvider
 }
 
-func New(provider usecase.Provider, manager *workers.Manager) *Handle {
-	return &Handle{
-		userProvider:  provider,
-		workerManager: manager,
+func New(provider usecase.UserProvider, manager *workers.Manager, uploadProvider uploading.UploadingProvider) *Handler {
+	return &Handler{
+		userProvider:   provider,
+		workerManager:  manager,
+		uploadProvider: uploadProvider,
 	}
 }
 
-func (h *Handle) Login(c *gin.Context) {
+func (h *Handler) Login(c *gin.Context) {
 	var user models.UserRequest
 	if err := c.ShouldBind(&user); err != nil {
-		slog.Error(errors.Wrap(err, "Handle.Login gin.ShouldBind:").Error())
-		return
-	}
-
-	id, err := h.userProvider.GetIDByLoginFromDB(c, user.Login, user.Password)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			return
-		}
-		slog.Error(errors.Wrap(err, "Handle.Login userProvider.GetIDByLoginFromDB:").Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
-		return
-	}
-	if id == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		slog.Error("Handler.Login gin.ShouldBind", slog.Any("error", err))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"id": id})
+	userResponce, err := h.userProvider.GetIDByLogin(c, &user)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
+		slog.Error("Handler.Login userProvider.GetIDByLogin", slog.Any("error", err))
+		return
+	}
+	if userResponce.ID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		slog.Error("Handler.Login authentication failed", slog.String("reason", "invalid credentials"))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"id": userResponce.ID})
 }
 
-func (h *Handle) GetUserByID(c *gin.Context) {
+func (h *Handler) GetUserByID(c *gin.Context) {
 	idParam := c.Param("id")
+
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
-		slog.Error(errors.Wrap(err, "Handle.GetUserByID strconv.Atoi:").Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
+		slog.Error("Handler.GetUserByID strconv.Atoi", slog.Any("error", err))
 		return
 	}
 
-	login, err := h.userProvider.GetUserByIDFromDB(c, id)
+	userResponce, err := h.userProvider.GetUserByID(c, &models.UserRequest{ID: id})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			slog.Error(errors.Wrap(err, "Handle.GetUserByID userProvider.GetUserByIDFromDB:").Error())
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-			return
-		}
-		slog.Error(errors.Wrap(err, "Handle.GetUserByID userProvider.GetUserByIDFromDB:").Error())
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
+		slog.Error("Handler.GetUserByID userProvider.GetUserByID", slog.Any("error", err))
 		return
 	}
-	if login == "" {
+	if userResponce.Login == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		slog.Error("Handler.GetUserByID authorization failed", slog.String("reason", "user not found or access denied"))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"user": login})
+	c.JSON(http.StatusOK, gin.H{"user": userResponce.Login})
 }
 
-func (h *Handle) AddUser(c *gin.Context) {
+func (h *Handler) AddUser(c *gin.Context) {
 	var user models.UserRequest
 	if err := c.ShouldBind(&user); err != nil {
-		slog.Error(errors.Wrap(err, "Handle.AddUser gin.ShouldBind:").Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
+		slog.Error("Handler.AddUser gin.ShouldBind", slog.Any("error", err))
 		return
 	}
 
-	if err := h.userProvider.AddingUserToDB(c, user.ID, user.Login, user.Password); err != nil {
+	if err := h.userProvider.AddUser(c, &user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect user data"})
-		slog.Error(errors.Wrap(err, "Handle.AddUser userProvider.AddingUserToDB:").Error())
+		slog.Error("Handler.AddUser userProvider.AddingUser", slog.Any("error", err))
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user": "added"})
 }
 
-func (h *Handle) UpdateUser(c *gin.Context) {
+func (h *Handler) UpdateUser(c *gin.Context) {
 	var user models.UserRequest
 	if err := c.ShouldBind(&user); err != nil {
-		slog.Error(errors.Wrap(err, "Handle.UpdateUser gin.ShouldBind:").Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
+		slog.Error("Handler.UpdateUser gin.ShouldBind", slog.Any("error", err))
 		return
 	}
 
-	if err := h.userProvider.UpdateUserInDB(c, user.ID, user.Login, user.Password); err != nil {
+	if err := h.userProvider.UpdateUser(c, &user); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		slog.Error(errors.Wrap(err, "Handle.UpdateUser userProvider.UpdateUserInDB:").Error())
+		slog.Error("Handler.UpdateUser userProvider.UpdateUser", slog.Any("error", err))
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"user by id: " + strconv.FormatInt(int64(user.ID), 10): "updated"})
 }
 
-func (h *Handle) UploadFile(c *gin.Context) {
-	file, err := c.FormFile("File")
+func (h *Handler) UploadFile(c *gin.Context) {
+	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to retrieve file"})
-		slog.Error(errors.Wrap(err, "Handle.UploadFile gin.FormFile:").Error())
+		slog.Error("Handler.UploadFile gin.FormFile", slog.Any("error", err))
 		return
 	}
 
-	h.userProvider.SetFile(file)
-	h.workerManager.SetJob(h.userProvider.UploadFile)
-	if err := h.workerManager.GetLog(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save file"})
-		slog.Error(errors.Wrap(err, "Handle.UploadFile workerManager.GetLog:").Error())
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect query"})
+		slog.Error("Handler.UploadFile gin.Param", slog.String("reason", "no parameters received"))
 		return
 	}
+
+	//NOTE: вопрос о сохранении файла
+	reqCtx := c.Request.Context()
+	h.workerManager.SetJob(func(ctx context.Context) error {
+		if err := h.uploadProvider.Upload(reqCtx, id, file); err != nil {
+			return errors.Wrap(err, "SetJob uploadProvider.Upload")
+		}
+		return nil
+	})
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "File uploaded successfully",

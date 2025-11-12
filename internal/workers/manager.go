@@ -2,49 +2,49 @@ package workers
 
 import (
 	"context"
+	"log/slog"
 )
-
-var jobQueueLen int = 1000
 
 type Manager struct {
 	jobQueue       chan func(context.Context) error
-	logChan        chan error
 	workerPoolSize int
 }
 
-func New(workerCount, queueLen int) *Manager {
+func new(workerCount, queueLen int) *Manager {
 	return &Manager{
 		workerPoolSize: workerCount,
 		jobQueue:       make(chan func(context.Context) error, queueLen),
-		logChan:        make(chan error),
 	}
 }
 
+func Run(workerCount, queueLen int) *Manager {
+	manager := new(workerCount, queueLen)
+	go manager.StartPool()
+	return manager
+}
+
 func (m *Manager) StartPool() {
+	for i := 0; i < m.workerPoolSize; i++ {
+		go m.worker()
+	}
+}
+
+func (m *Manager) worker() {
 	for job := range m.jobQueue {
-		go m.worker(job)
+		if err := job(context.Background()); err != nil {
+			slog.Error("Worker failed to execute job", slog.Any("error", err))
+		}
+	}
+}
+
+func (m *Manager) SetJob(job func(ctx context.Context) error) {
+	select {
+	case m.jobQueue <- job:
+	default:
+		slog.Error("Task rejected", slog.Any("reason", "Job queue full"))
 	}
 }
 
 func (m *Manager) Stop() {
 	close(m.jobQueue)
-	close(m.logChan)
-}
-
-func (m *Manager) SetJob(job func(ctx context.Context) error) {
-	m.jobQueue <- job
-}
-
-func (m *Manager) worker(job func(ctx context.Context) error) {
-	m.logChan <- job(context.TODO())
-}
-
-func (m *Manager) GetLog() error {
-	return <-m.logChan
-}
-
-func Run(workerCount int) *Manager {
-	manager := New(workerCount, jobQueueLen)
-	go manager.StartPool()
-	return manager
 }

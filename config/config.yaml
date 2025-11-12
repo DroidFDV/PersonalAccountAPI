@@ -1,0 +1,27 @@
+app:
+  name: "PersonalAccountApi"
+  port: "8080"
+  workers:
+    number: 10
+    queuelen: 1000
+  cache:
+    ttl: 60
+    interval: 10
+  debug: true
+
+db:
+  host: "postgres"
+  port: 5432
+  user: "postgres"
+  pass: "postgres"
+  name: "postgres"
+
+metrics:
+  port: "9091"
+
+filestorage: 
+  endpoint: "minio:9000"
+  user: "minio"
+  password: "miniosecret"
+  usessl: false
+  bucketname: "uploads"
