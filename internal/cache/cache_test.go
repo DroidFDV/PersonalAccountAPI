@@ -33,7 +33,7 @@ func TestCacheDecorator_GetIDByLogin_CacheHit(t *testing.T) {
 
 func TestCacheDecorator_TTL_Expiry(t *testing.T) {
 	mockProvider := &mocks.MockRepoProvider{}
-	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(models.UserDTO{ID: 123, Login: "test"}, nil).Twice()
+	mockProvider.On("GetIDByLogin", mock.Anything, mock.Anything).Return(&models.UserDTO{ID: 123, Login: "test"}, nil).Twice()
 
 	cache := New(mockProvider, 100*time.Millisecond)
 
